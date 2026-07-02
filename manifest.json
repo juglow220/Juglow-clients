@@ -1,0 +1,17 @@
+{
+  "name": "JuGlow Studio",
+  "short_name": "JuGlow",
+  "description": "JuGlow Client Records",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#fdf6f3",
+  "theme_color": "#7a4a4a",
+  "icons": [
+    {
+      "src": "icon.png",
+      "sizes": "1024x1024",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
