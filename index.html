@@ -13,7 +13,10 @@
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
   body { font-family: -apple-system, 'Inter', system-ui, sans-serif; background: #fdf6f3; color: #3d2020; min-height: 100vh; }
-  #app { max-width: 520px; margin: 0 auto; min-height: 100vh; position: relative; }
+  #app { max-width: 520px; margin: 0 auto; min-height: 100vh; position: relative; transition: max-width 0.2s; }
+  #app.wide { max-width: 100%; }
+  #app.wide .section { padding: 16px 32px 60px; }
+  #app.wide .header { padding: 14px 32px; }
 
   /* PASSWORD SCREEN */
   .lock-screen { position: fixed; inset: 0; background: #fdf6f3; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 9999; padding: 40px 32px; }
@@ -104,6 +107,20 @@
   .consent-history-item { border-left: 3px solid #f2e0d8; padding-left: 12px; margin-bottom: 14px; }
   .consent-history-date { font-size: 12px; font-weight: 700; color: #7a4a4a; }
   .consent-history-sig { margin-top: 6px; border: 1px solid #e8cfc7; border-radius: 8px; background: #fff9f7; max-width: 100%; height: 60px; object-fit: contain; }
+
+  /* NAV TABS */
+  .nav-tabs { display: flex; gap: 6px; }
+  .nav-tab { padding: 7px 16px; border-radius: 20px; border: 1.5px solid #e8cfc7; background: transparent; color: #9a6a6a; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; transition: all 0.15s; }
+  .nav-tab.active { border-color: #7a4a4a; background: #7a4a4a; color: #fff; }
+
+  /* EXPENSE CARDS */
+  .expense-card { background: #fff; border-radius: 14px; border: 1px solid #e8cfc7; padding: 14px 16px; margin-bottom: 10px; box-shadow: 0 2px 8px rgba(122,74,74,0.06); }
+  .expense-flag { border-color: #c0392b !important; }
+  .amount-display { font-size: 16px; font-weight: 700; color: #3d2020; }
+  .total-bar { background: #fbece6; border-radius: 14px; border: 1px solid #f2e0d8; padding: 14px 16px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; }
+  .total-bar-label { font-size: 12px; font-weight: 700; color: #9a6a6a; text-transform: uppercase; letter-spacing: 0.6px; }
+  .total-bar-amount { font-size: 22px; font-weight: 700; color: #7a4a4a; }
+  .import-drop { border: 2px dashed #e8cfc7; border-radius: 14px; padding: 40px 20px; text-align: center; background: #fff9f7; }
 </style>
 </head>
 <body>
@@ -119,7 +136,10 @@
   <div class="header">
     <div>
       <div class="logo">JuGlow Studio</div>
-      <div class="logo-sub">Client Records</div>
+    </div>
+    <div class="nav-tabs">
+      <button class="nav-tab active" id="navClients" onclick="switchSection('clients')">Clients</button>
+      <button class="nav-tab" id="navExpenses" onclick="switchSection('expenses')">Expenses</button>
     </div>
   </div>
   <div id="view"></div>
@@ -147,14 +167,23 @@ let state = {
   savedConsents: [],
   activeConsentService: null,
   loading: false,
+  expenseMonth: new Date().toISOString().slice(0, 7),
+  expenseYear: new Date().getFullYear().toString(),
+  expenseViewMode: 'month',
+  expenses: [],
+  expenseForm: {},
+  importRows: [],
 };
 
 // ─── TOAST ───────────────────────────────────────────────────────
 function showToast(msg) {
   const t = document.getElementById('toast');
   t.textContent = msg;
+  t.style.whiteSpace = msg.length > 40 ? 'normal' : 'nowrap';
+  t.style.maxWidth = msg.length > 40 ? '85%' : 'none';
   t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), 2500);
+  clearTimeout(t._hideTimer);
+  t._hideTimer = setTimeout(() => t.classList.remove('show'), msg.length > 40 ? 6000 : 2500);
 }
 
 // ─── FORM DEFINITIONS ────────────────────────────────────────────
@@ -324,6 +353,181 @@ const SERVICES = {
   },
 };
 
+// ─── EXPENSE CONSTANTS ───────────────────────────────────────────
+const CATEGORIES = ['Supplies','Equipment','Furniture','Education','Marketing','Registration','Software/Subscriptions','Phone/Utilities','Other'];
+
+const VENDOR_RULES = [
+  { pattern: /claude|anthropic/i, category: 'Software/Subscriptions' },
+  { pattern: /tello/i, category: 'Phone/Utilities' },
+  { pattern: /at&t|att\b/i, category: 'Phone/Utilities' },
+  { pattern: /hobby lobby/i, category: 'Supplies' },
+  { pattern: /michaels/i, category: 'Supplies' },
+  { pattern: /skin script/i, category: 'Supplies' },
+  { pattern: /five below/i, category: 'Supplies' },
+  { pattern: /staples/i, category: 'Supplies' },
+  { pattern: /wayfair/i, category: 'Furniture' },
+];
+
+const ALWAYS_ASK_VENDORS = [/amazon/i, /target/i, /temu/i, /walmart/i, /canva/i];
+
+function guessCategory(str) {
+  for (const rule of VENDOR_RULES) {
+    if (rule.pattern.test(str)) return rule.category;
+  }
+  return null;
+}
+
+function isAlwaysAsk(str) {
+  return ALWAYS_ASK_VENDORS.some(p => p.test(str));
+}
+
+function formatMonth(ym) {
+  const [y, m] = ym.split('-');
+  return new Date(y, m - 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+}
+
+function toTitleCase(str) {
+  return str.toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+}
+
+function parseCSVLine(line) {
+  const result = [];
+  let current = '';
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    if (line[i] === '"') { inQuotes = !inQuotes; }
+    else if (line[i] === ',' && !inQuotes) { result.push(current); current = ''; }
+    else { current += line[i]; }
+  }
+  result.push(current);
+  return result;
+}
+
+function parseAnyCSV(text) {
+  const clean = text.replace(/^﻿/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  const lines = clean.trim().split('\n');
+  const header = parseCSVLine(lines[0]).map(h => h.trim().replace(/"/g, '').toLowerCase());
+  // Auto-detect format by headers
+  if (header.includes('vendor') || header.includes('payment')) {
+    return parseSpreadsheetCSV(lines, header);
+  }
+  return parseChaseCSV(text);
+}
+
+function parseSpreadsheetCSV(lines, header) {
+  const rows = [];
+  for (let i = 1; i < lines.length; i++) {
+    const cols = parseCSVLine(lines[i]);
+    if (cols.length < 2) continue;
+    const row = {};
+    header.forEach((h, idx) => { row[h] = (cols[idx] || '').replace(/"/g, '').trim(); });
+
+    const dateRaw = row['date'] || '';
+    const vendor = row['vendor'] || '';
+    const description = row['description'] || '';
+    const amtStr = (row['amount'] || '0').replace(/[$,]/g, '');
+    const amount = parseFloat(amtStr);
+    const category = row['category'] || '';
+    const payment = row['payment'] || '';
+    const notes = row['notes'] || '';
+
+    if (!vendor || isNaN(amount) || amount <= 0) continue;
+
+    // Convert MM/DD/YY or MM/DD/YYYY to YYYY-MM-DD
+    const dp = dateRaw.split('/');
+    let date = dateRaw;
+    if (dp.length === 3) {
+      const yr = dp[2].length === 2 ? '20' + dp[2] : dp[2];
+      date = `${yr}-${dp[0].padStart(2,'0')}-${dp[1].padStart(2,'0')}`;
+    }
+
+    // Map category to our standard list (case-insensitive fuzzy match)
+    const catMatch = CATEGORIES.find(c => c.toLowerCase() === category.toLowerCase())
+      || CATEGORIES.find(c => category.toLowerCase().includes(c.toLowerCase().split('/')[0].toLowerCase()))
+      || '';
+
+    rows.push({
+      _date: date,
+      _vendor: vendor,
+      _desc: description,
+      _amount: amount,
+      _category: catMatch,
+      _payment: payment,
+      _notes: notes,
+    });
+  }
+  return rows;
+}
+
+function parseChaseCSV(text) {
+  // Strip BOM and normalize line endings
+  const clean = text.replace(/^﻿/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  const lines = clean.trim().split('\n');
+  const header = parseCSVLine(lines[0]).map(h => h.trim().replace(/"/g, '').toLowerCase());
+
+  const rows = [];
+  for (let i = 1; i < lines.length; i++) {
+    const cols = parseCSVLine(lines[i]);
+    if (cols.length < 3) continue;
+    const row = {};
+    header.forEach((h, idx) => { row[h] = (cols[idx] || '').replace(/"/g, '').trim(); });
+
+    const dateRaw = row['transaction date'] || row['posting date'] || row['date'] || '';
+    const desc = row['description'] || row['merchant name'] || row['name'] || '';
+    const amtStr = row['amount'] || row['debit'] || '0';
+    const amtRaw = parseFloat(amtStr.replace(/[$,]/g, ''));
+    const typeCol = (row['type'] || row['transaction type'] || '').toLowerCase();
+
+    // Chase: purchases = negative amount, OR type contains "sale"/"debit"
+    const isDebit = (!isNaN(amtRaw) && amtRaw < 0) ||
+                    (typeCol && (typeCol.includes('sale') || typeCol.includes('debit')));
+    if (!isDebit || isNaN(amtRaw)) continue;
+
+    const dp = dateRaw.split('/');
+    const date = dp.length === 3
+      ? `${dp[2]}-${dp[0].padStart(2,'0')}-${dp[1].padStart(2,'0')}`
+      : dateRaw;
+    const vendor = toTitleCase(desc.replace(/#\d+/g, '').replace(/\s+/g, ' ').trim());
+    const amount = Math.abs(amtRaw);
+    const autocat = guessCategory(vendor) || guessCategory(desc);
+    const askCat = isAlwaysAsk(vendor) || isAlwaysAsk(desc);
+    rows.push({ _date: date, _vendor: vendor, _desc: desc, _amount: amount, _category: (autocat && !askCat) ? autocat : '' });
+  }
+  return rows;
+}
+
+function makeField(labelText, inputFn) {
+  const wrap = document.createElement('div');
+  wrap.className = 'field';
+  const lbl = document.createElement('label');
+  lbl.textContent = labelText;
+  wrap.appendChild(lbl);
+  wrap.appendChild(inputFn());
+  return wrap;
+}
+
+function makeCategorySelect(ef, autoTagEl) {
+  const sel = document.createElement('select');
+  sel.className = 'input';
+  sel.innerHTML = '<option value="">Select category…</option>' +
+    CATEGORIES.map(c => `<option value="${c}" ${ef.category === c ? 'selected' : ''}>${c}</option>`).join('');
+  sel.onchange = e => { ef.category = e.target.value; };
+  return sel;
+}
+
+function switchSection(section) {
+  if (section === 'clients') { showClients(); }
+  else if (section === 'expenses') { showExpenses(); }
+}
+
+function updateNav() {
+  const isExp = ['expenses', 'addExpense', 'importCSV'].includes(state.view);
+  const nc = document.getElementById('navClients');
+  const ne = document.getElementById('navExpenses');
+  if (nc) nc.classList.toggle('active', !isExp);
+  if (ne) ne.classList.toggle('active', isExp);
+}
+
 // ─── RENDER ENGINE ───────────────────────────────────────────────
 function render(html) {
   document.getElementById('view').innerHTML = html;
@@ -418,6 +622,9 @@ async function showClients() {
 function renderView() {
   const view = document.getElementById('view');
   view.innerHTML = '';
+  updateNav();
+  const isWide = ['expenses','importCSV'].includes(state.view);
+  document.getElementById('app').classList.toggle('wide', isWide);
 
   if (state.view === 'clients') {
     renderClientList(view);
@@ -431,6 +638,12 @@ function renderView() {
     renderNotes(view);
   } else if (state.view === 'consent') {
     renderConsent(view);
+  } else if (state.view === 'expenses') {
+    renderExpenses(view);
+  } else if (state.view === 'addExpense') {
+    renderAddExpense(view);
+  } else if (state.view === 'importCSV') {
+    renderImportCSV(view);
   }
 }
 
@@ -977,6 +1190,564 @@ function renderConsent(view) {
   };
   section.appendChild(saveBtn);
   view.appendChild(section);
+}
+
+// ─── EXPENSES ────────────────────────────────────────────────────
+async function showExpenses() {
+  state.view = 'expenses';
+  updateNav();
+  render(`<div class="loading"><div class="spinner"></div> Loading expenses…</div>`);
+  let from, to;
+  if (state.expenseViewMode === 'year') {
+    from = `${state.expenseYear}-01-01`;
+    to = `${state.expenseYear}-12-31`;
+  } else {
+    const [yr, mo] = state.expenseMonth.split('-');
+    const lastDay = new Date(parseInt(yr), parseInt(mo), 0).getDate();
+    from = `${state.expenseMonth}-01`;
+    to = `${state.expenseMonth}-${String(lastDay).padStart(2,'0')}`;
+  }
+  const { data, error } = await db.from('expenses').select('*').gte('date', from).lte('date', to).order('date', { ascending: false });
+  if (error) { showToast('Error loading: ' + error.message); state.expenses = []; }
+  else state.expenses = data || [];
+  renderView();
+}
+
+function renderExpenses(view) {
+  const section = document.createElement('div');
+  section.className = 'section';
+
+  // Header row
+  const hdr = document.createElement('div');
+  hdr.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-bottom:14px';
+  const titleDiv = document.createElement('div');
+  titleDiv.innerHTML = `<div style="font-size:20px;font-weight:700">Expenses</div>`;
+  const btnWrap = document.createElement('div');
+  btnWrap.style.cssText = 'display:flex;gap:8px';
+  const importBtn = document.createElement('button');
+  importBtn.className = 'btn-ghost'; importBtn.textContent = 'Import CSV';
+  importBtn.onclick = () => { state.view = 'importCSV'; state.importRows = []; renderView(); };
+  const addBtn = document.createElement('button');
+  addBtn.className = 'btn-primary'; addBtn.textContent = '+ Add';
+  addBtn.onclick = () => {
+    state.expenseForm = { date: new Date().toISOString().slice(0, 10) };
+    state.view = 'addExpense'; renderView();
+  };
+  btnWrap.appendChild(importBtn); btnWrap.appendChild(addBtn);
+  hdr.appendChild(titleDiv); hdr.appendChild(btnWrap);
+  section.appendChild(hdr);
+
+  // Month / Year toggle
+  const toggleRow = document.createElement('div');
+  toggleRow.style.cssText = 'display:flex;gap:6px;margin-bottom:12px';
+  const monthToggle = document.createElement('button');
+  monthToggle.className = 'btn-pill' + (state.expenseViewMode === 'month' ? ' active' : '');
+  monthToggle.textContent = 'By Month';
+  monthToggle.onclick = () => { state.expenseViewMode = 'month'; showExpenses(); };
+  const yearToggle = document.createElement('button');
+  yearToggle.className = 'btn-pill' + (state.expenseViewMode === 'year' ? ' active' : '');
+  yearToggle.textContent = 'Full Year';
+  yearToggle.onclick = () => { state.expenseViewMode = 'year'; showExpenses(); };
+  toggleRow.appendChild(monthToggle);
+  toggleRow.appendChild(yearToggle);
+  section.appendChild(toggleRow);
+
+  // Picker + total
+  const controlRow = document.createElement('div');
+  controlRow.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:10px';
+
+  if (state.expenseViewMode === 'month') {
+    const monthInp = document.createElement('input');
+    monthInp.type = 'month'; monthInp.className = 'input';
+    monthInp.value = state.expenseMonth; monthInp.style.cssText = 'max-width:160px';
+    monthInp.onchange = e => { state.expenseMonth = e.target.value; showExpenses(); };
+    controlRow.appendChild(monthInp);
+  } else {
+    const yearSel = document.createElement('select');
+    yearSel.className = 'input'; yearSel.style.cssText = 'max-width:120px';
+    const currentYear = new Date().getFullYear();
+    for (let y = currentYear; y >= currentYear - 4; y--) {
+      const opt = document.createElement('option');
+      opt.value = y; opt.textContent = y;
+      if (String(y) === state.expenseYear) opt.selected = true;
+      yearSel.appendChild(opt);
+    }
+    yearSel.onchange = e => { state.expenseYear = e.target.value; showExpenses(); };
+    controlRow.appendChild(yearSel);
+  }
+
+  const total = state.expenses.reduce((s, e) => s + parseFloat(e.amount || 0), 0);
+  const totalPill = document.createElement('div');
+  totalPill.style.cssText = 'background:#fbece6;border:1px solid #f2e0d8;border-radius:20px;padding:6px 14px;white-space:nowrap';
+  totalPill.innerHTML = `<span style="font-size:12px;color:#9a6a6a;font-weight:600">${state.expenseViewMode === 'year' ? state.expenseYear : formatMonth(state.expenseMonth)} </span><span style="font-size:15px;font-weight:700;color:#7a4a4a">$${total.toFixed(2)}</span>`;
+  controlRow.appendChild(totalPill);
+  section.appendChild(controlRow);
+
+  if (state.expenses.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'empty'; empty.textContent = 'No expenses this month';
+    section.appendChild(empty);
+  } else {
+    // Scrollable table wrapper
+    const tableWrap = document.createElement('div');
+    tableWrap.style.cssText = 'overflow-x:auto;border-radius:14px;border:1px solid #e8cfc7;background:#fff;box-shadow:0 2px 8px rgba(122,74,74,0.06)';
+
+    const table = document.createElement('table');
+    table.style.cssText = 'width:100%;border-collapse:collapse;font-size:13px';
+
+    // Header
+    const thead = document.createElement('thead');
+    thead.innerHTML = `<tr style="background:#f9f0ec;border-bottom:2px solid #e8cfc7">
+      <th style="padding:10px 12px;text-align:left;font-size:11px;font-weight:700;color:#9a6a6a;text-transform:uppercase;letter-spacing:0.5px;white-space:nowrap">Date</th>
+      <th style="padding:10px 12px;text-align:left;font-size:11px;font-weight:700;color:#9a6a6a;text-transform:uppercase;letter-spacing:0.5px">Vendor</th>
+      <th style="padding:10px 12px;text-align:left;font-size:11px;font-weight:700;color:#9a6a6a;text-transform:uppercase;letter-spacing:0.5px">Description</th>
+      <th style="padding:10px 12px;text-align:left;font-size:11px;font-weight:700;color:#9a6a6a;text-transform:uppercase;letter-spacing:0.5px">Category</th>
+      <th style="padding:10px 12px;text-align:right;font-size:11px;font-weight:700;color:#9a6a6a;text-transform:uppercase;letter-spacing:0.5px">Amount</th>
+      <th style="padding:10px 12px;text-align:left;font-size:11px;font-weight:700;color:#9a6a6a;text-transform:uppercase;letter-spacing:0.5px;white-space:nowrap">Payment</th>
+      <th style="padding:10px 12px;text-align:left;font-size:11px;font-weight:700;color:#9a6a6a;text-transform:uppercase;letter-spacing:0.5px">Notes</th>
+      <th style="padding:10px 12px;width:60px"></th>
+    </tr>`;
+    table.appendChild(thead);
+
+    const tbody = document.createElement('tbody');
+    let lastMonth = null;
+    let monthTotal = 0;
+    const allRows = [...state.expenses];
+
+    // In year view, inject month subtotal rows
+    function flushMonthTotal(label, subtotal) {
+      if (state.expenseViewMode !== 'year' || !label) return;
+      const tr = document.createElement('tr');
+      tr.style.cssText = 'background:#f9f0ec;border-top:2px solid #e8cfc7;border-bottom:2px solid #e8cfc7';
+      tr.innerHTML = `<td colspan="4" style="padding:8px 12px;font-size:12px;font-weight:700;color:#7a4a4a;text-transform:uppercase;letter-spacing:0.5px">${label}</td>
+        <td style="padding:8px 12px;text-align:right;font-weight:700;color:#7a4a4a">$${subtotal.toFixed(2)}</td>
+        <td colspan="3"></td>`;
+      tbody.appendChild(tr);
+    }
+
+    allRows.forEach((exp, idx) => {
+      // Year view: inject month header when month changes
+      if (state.expenseViewMode === 'year') {
+        const expMonth = exp.date ? exp.date.slice(0, 7) : '';
+        if (expMonth !== lastMonth) {
+          if (lastMonth !== null) flushMonthTotal(formatMonth(lastMonth), monthTotal);
+          lastMonth = expMonth;
+          monthTotal = 0;
+        }
+        monthTotal += parseFloat(exp.amount || 0);
+      }
+
+      const tr = document.createElement('tr');
+      tr.style.cssText = `border-bottom:1px solid #f2e0d8;transition:background 0.1s;${idx % 2 === 1 ? 'background:#fdf9f7' : ''}`;
+      tr.onmouseenter = () => tr.style.background = '#fbece6';
+      tr.onmouseleave = () => tr.style.background = idx % 2 === 1 ? '#fdf9f7' : '';
+
+      const dateStr = exp.date ? exp.date.slice(5).replace('-', '/') + '/' + exp.date.slice(0,4).slice(2) : '';
+
+      tr.innerHTML = `
+        <td style="padding:10px 12px;white-space:nowrap;color:#9a6a6a;font-size:12px">${dateStr}</td>
+        <td style="padding:10px 12px;font-weight:700;color:#3d2020;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${exp.vendor || ''}</td>
+        <td style="padding:10px 12px;color:#3d2020;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${exp.description || ''}</td>
+        <td style="padding:10px 12px;white-space:nowrap"><span class="tag" style="font-size:10px">${exp.category || ''}</span></td>
+        <td style="padding:10px 12px;text-align:right;font-weight:700;color:#3d2020;white-space:nowrap">$${parseFloat(exp.amount||0).toFixed(2)}</td>
+        <td style="padding:10px 12px;color:#9a6a6a;font-size:12px;white-space:nowrap;max-width:130px;overflow:hidden;text-overflow:ellipsis">${exp.payment_method || ''}</td>
+        <td style="padding:10px 12px;color:#9a6a6a;font-size:12px;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${exp.notes || ''}${exp.receipt_url ? ' <a href="'+exp.receipt_url+'" target="_blank" style="color:#7a4a4a;text-decoration:none">📎</a>' : ''}</td>
+      `;
+
+      // Actions cell
+      const actionTd = document.createElement('td');
+      actionTd.style.cssText = 'padding:8px 10px;white-space:nowrap';
+
+      const editBtn = document.createElement('button');
+      editBtn.title = 'Edit';
+      editBtn.style.cssText = 'background:transparent;border:none;cursor:pointer;padding:4px 6px;border-radius:6px;font-size:14px;color:#9a6a6a';
+      editBtn.textContent = '✏️';
+      editBtn.onclick = () => { state.expenseForm = { ...exp }; state.view = 'addExpense'; renderView(); };
+
+      const delBtn = document.createElement('button');
+      delBtn.title = 'Delete';
+      delBtn.style.cssText = 'background:transparent;border:none;cursor:pointer;padding:4px 6px;border-radius:6px;font-size:14px;color:#c0392b';
+      delBtn.textContent = '🗑';
+      delBtn.onclick = () => {
+        // Replace action cell with inline confirm
+        actionTd.innerHTML = '';
+        actionTd.style.whiteSpace = 'nowrap';
+        const cancelBtn = document.createElement('button');
+        cancelBtn.textContent = 'Cancel';
+        cancelBtn.style.cssText = 'font-size:12px;padding:4px 10px;border-radius:8px;border:1.5px solid #e8cfc7;background:transparent;color:#9a6a6a;cursor:pointer;font-family:inherit;margin-right:6px';
+        cancelBtn.onclick = () => { actionTd.innerHTML = ''; actionTd.appendChild(editBtn); actionTd.appendChild(delBtn); };
+        const confirmBtn = document.createElement('button');
+        confirmBtn.textContent = 'Delete';
+        confirmBtn.style.cssText = 'font-size:12px;padding:4px 10px;border-radius:8px;border:none;background:#c0392b;color:#fff;cursor:pointer;font-family:inherit;font-weight:600';
+        confirmBtn.onclick = () => {
+          confirmBtn.disabled = true; confirmBtn.textContent = '…';
+          db.from('expenses').delete().eq('id', exp.id).then(({ error }) => {
+            if (error) { showToast('Error deleting'); cancelBtn.onclick(); return; }
+            tr.style.opacity = '0'; tr.style.transition = 'opacity 0.3s';
+            setTimeout(() => { showToast('Deleted ✓'); showExpenses(); }, 300);
+          });
+        };
+        tr.style.background = '#fde8e8';
+        actionTd.appendChild(cancelBtn);
+        actionTd.appendChild(confirmBtn);
+      };
+
+      actionTd.appendChild(editBtn);
+      actionTd.appendChild(delBtn);
+      tr.appendChild(actionTd);
+      tbody.appendChild(tr);
+    });
+
+    // Flush last month subtotal in year view
+    flushMonthTotal(lastMonth ? formatMonth(lastMonth) : '', monthTotal);
+
+    table.appendChild(tbody);
+    tableWrap.appendChild(table);
+    section.appendChild(tableWrap);
+  }
+  view.appendChild(section);
+}
+
+function renderAddExpense(view) {
+  if (!state.expenseForm) state.expenseForm = { date: new Date().toISOString().slice(0, 10) };
+  const ef = state.expenseForm;
+  const section = document.createElement('div');
+  section.className = 'section';
+
+  const back = document.createElement('button');
+  back.className = 'btn-back'; back.textContent = '← Expenses';
+  back.onclick = () => { state.view = 'expenses'; renderView(); };
+  section.appendChild(back);
+
+  const title = document.createElement('div');
+  title.innerHTML = `<div style="font-size:18px;font-weight:700;margin-bottom:20px">${ef.id ? 'Edit' : 'Add'} Expense</div>`;
+  section.appendChild(title);
+
+  // Date
+  section.appendChild(makeField('Date', () => {
+    const inp = document.createElement('input');
+    inp.type = 'date'; inp.className = 'input';
+    inp.value = ef.date || '';
+    inp.onchange = e => ef.date = e.target.value;
+    return inp;
+  }));
+
+  // Category field (built first so vendor can reference it)
+  const catWrap = document.createElement('div');
+  catWrap.className = 'field';
+  const catLbl = document.createElement('label');
+  catLbl.innerHTML = 'Category';
+  const autoTag = document.createElement('span');
+  autoTag.className = 'tag';
+  autoTag.style.cssText = 'display:none;margin-left:8px;font-size:10px';
+  catLbl.appendChild(autoTag);
+  catWrap.appendChild(catLbl);
+  const catSel = makeCategorySelect(ef);
+  catWrap.appendChild(catSel);
+
+  // Vendor
+  section.appendChild(makeField('Vendor', () => {
+    const inp = document.createElement('input');
+    inp.type = 'text'; inp.className = 'input';
+    inp.value = ef.vendor || ''; inp.placeholder = 'Business or store name';
+    inp.oninput = e => {
+      ef.vendor = e.target.value;
+      const cat = guessCategory(ef.vendor);
+      const ask = isAlwaysAsk(ef.vendor);
+      if (cat && !ask) {
+        catSel.value = cat; ef.category = cat;
+        autoTag.textContent = 'Auto-filled ✓';
+        autoTag.style.cssText = 'display:inline;margin-left:8px;font-size:10px;background:#d4edda;color:#2d6a4f';
+      } else if (ask) {
+        catSel.value = ''; ef.category = '';
+        autoTag.textContent = 'Please select category';
+        autoTag.style.cssText = 'display:inline;margin-left:8px;font-size:10px;background:#fde8e8;color:#c0392b';
+      } else {
+        autoTag.style.display = 'none';
+      }
+    };
+    return inp;
+  }));
+
+  section.appendChild(catWrap);
+
+  // Description
+  section.appendChild(makeField('Description', () => {
+    const inp = document.createElement('input');
+    inp.type = 'text'; inp.className = 'input';
+    inp.value = ef.description || ''; inp.placeholder = 'What was purchased';
+    inp.oninput = e => ef.description = e.target.value;
+    return inp;
+  }));
+
+  // Amount
+  section.appendChild(makeField('Amount ($)', () => {
+    const inp = document.createElement('input');
+    inp.type = 'number'; inp.className = 'input';
+    inp.step = '0.01'; inp.min = '0'; inp.placeholder = '0.00';
+    inp.value = ef.amount || '';
+    inp.oninput = e => { ef.amount = e.target.value; updateReceiptNote(); };
+    return inp;
+  }));
+
+  // Payment method
+  // Payment method — parse existing value if editing (e.g. "Credit Card •••• 4242")
+  const pmParts = (ef.payment_method || '').split(' •••• ');
+  const pmBase = pmParts[0] || '';
+  let pmLast4 = pmParts[1] || '';
+
+  const pmWrap = document.createElement('div');
+  pmWrap.className = 'field';
+  const pmLbl = document.createElement('label');
+  pmLbl.textContent = 'Payment Method';
+  pmWrap.appendChild(pmLbl);
+
+  const pmSel = document.createElement('select');
+  pmSel.className = 'input';
+  ['', 'Cash', 'Credit Card', 'Debit Card', 'Check', 'Zelle', 'Other'].forEach(o => {
+    const opt = document.createElement('option');
+    opt.value = o; opt.textContent = o || 'Select…';
+    if (pmBase === o) opt.selected = true;
+    pmSel.appendChild(opt);
+  });
+  pmWrap.appendChild(pmSel);
+
+  const cardWrap = document.createElement('div');
+  cardWrap.style.cssText = 'margin-top:8px;display:flex;align-items:center;gap:8px';
+  const cardPrefix = document.createElement('span');
+  cardPrefix.style.cssText = 'font-size:13px;color:#9a6a6a;white-space:nowrap';
+  cardPrefix.textContent = 'Last 4 digits:';
+  const cardInp = document.createElement('input');
+  cardInp.type = 'text'; cardInp.className = 'input';
+  cardInp.maxLength = 4; cardInp.placeholder = '1234';
+  cardInp.style.cssText = 'max-width:90px;letter-spacing:2px;font-weight:700';
+  cardInp.value = pmLast4;
+  cardWrap.appendChild(cardPrefix);
+  cardWrap.appendChild(cardInp);
+  pmWrap.appendChild(cardWrap);
+
+  function isCardMethod(v) { return v === 'Credit Card' || v === 'Debit Card'; }
+  function updatePmValue() {
+    const base = pmSel.value;
+    const last4 = cardInp.value.trim();
+    ef.payment_method = (isCardMethod(base) && last4.length > 0) ? `${base} •••• ${last4}` : base;
+  }
+  function updateCardVisibility() {
+    cardWrap.style.display = isCardMethod(pmSel.value) ? 'flex' : 'none';
+  }
+  pmSel.onchange = () => { updateCardVisibility(); updatePmValue(); };
+  cardInp.oninput = () => { pmLast4 = cardInp.value; updatePmValue(); };
+  updateCardVisibility();
+  updatePmValue();
+  section.appendChild(pmWrap);
+
+  // Receipt
+  const receiptWrap = document.createElement('div');
+  receiptWrap.className = 'field';
+  const receiptLbl = document.createElement('label');
+  receiptLbl.innerHTML = 'Receipt';
+  const reqNote = document.createElement('span');
+  reqNote.id = 'receiptReqNote';
+  reqNote.style.cssText = 'display:none;margin-left:8px;font-size:10px;background:#fde8e8;color:#c0392b;padding:2px 8px;border-radius:20px;font-weight:600';
+  reqNote.textContent = 'Required for amounts over $50';
+  receiptLbl.appendChild(reqNote);
+  receiptWrap.appendChild(receiptLbl);
+  const fileInp = document.createElement('input');
+  fileInp.type = 'file'; fileInp.accept = 'image/*,.pdf'; fileInp.className = 'input';
+  fileInp.style.padding = '8px';
+  fileInp.onchange = e => ef._receiptFile = e.target.files[0];
+  receiptWrap.appendChild(fileInp);
+  if (ef.receipt_url) {
+    const existingLink = document.createElement('div');
+    existingLink.style.cssText = 'margin-top:6px;font-size:12px;color:#7a4a4a';
+    existingLink.innerHTML = `<a href="${ef.receipt_url}" target="_blank" style="color:#7a4a4a;font-weight:600;text-decoration:none">📎 Current receipt</a> — upload a new file to replace`;
+    receiptWrap.appendChild(existingLink);
+  }
+  section.appendChild(receiptWrap);
+
+  function updateReceiptNote() {
+    const n = document.getElementById('receiptReqNote');
+    if (n) n.style.display = parseFloat(ef.amount) > 50 ? 'inline' : 'none';
+  }
+  updateReceiptNote();
+
+  // Notes
+  section.appendChild(makeField('Notes (optional)', () => {
+    const ta = document.createElement('textarea');
+    ta.className = 'input'; ta.style.minHeight = '60px';
+    ta.value = ef.notes || ''; ta.placeholder = 'Any additional notes…';
+    ta.oninput = e => ef.notes = e.target.value;
+    return ta;
+  }));
+
+  // Save
+  const saveBtn = document.createElement('button');
+  saveBtn.className = 'btn-primary btn-full';
+  saveBtn.textContent = ef.id ? 'Update Expense' : 'Save Expense';
+  saveBtn.style.marginTop = '8px';
+  saveBtn.onclick = async () => {
+    if (!ef.date) { showToast('Date is required'); return; }
+    if (!ef.vendor || !ef.vendor.trim()) { showToast('Vendor is required'); return; }
+    if (!ef.category) { showToast('Category is required'); return; }
+    if (!ef.amount || isNaN(parseFloat(ef.amount))) { showToast('Amount is required'); return; }
+    if (parseFloat(ef.amount) > 50 && !ef._receiptFile && !ef.receipt_url) { showToast('Receipt required for amounts over $50'); return; }
+    saveBtn.textContent = 'Saving…'; saveBtn.disabled = true;
+    try {
+      let receipt_url = ef.receipt_url || null;
+      if (ef._receiptFile) {
+        const ext = ef._receiptFile.name.split('.').pop();
+        const path = `${Date.now()}_${ef.vendor.replace(/\W+/g,'_').toLowerCase()}.${ext}`;
+        const { error: upErr } = await db.storage.from('receipts').upload(path, ef._receiptFile);
+        if (upErr) throw upErr;
+        const { data: urlData } = db.storage.from('receipts').getPublicUrl(path);
+        receipt_url = urlData.publicUrl;
+      }
+      const payload = {
+        date: ef.date, vendor: ef.vendor.trim(),
+        description: ef.description || '', category: ef.category,
+        amount: parseFloat(ef.amount), payment_method: ef.payment_method || '',
+        receipt_url, notes: ef.notes || '',
+      };
+      const { error } = ef.id
+        ? await db.from('expenses').update(payload).eq('id', ef.id)
+        : await db.from('expenses').insert([payload]);
+      if (error) throw error;
+      showToast(ef.id ? 'Expense updated ✓' : 'Expense saved ✓');
+      await showExpenses();
+    } catch (err) {
+      showToast('Error: ' + (err.message || err.error_description || JSON.stringify(err)));
+      saveBtn.textContent = ef.id ? 'Update Expense' : 'Save Expense';
+      saveBtn.disabled = false;
+    }
+  };
+  section.appendChild(saveBtn);
+  view.appendChild(section);
+}
+
+function renderImportCSV(view) {
+  const section = document.createElement('div');
+  section.className = 'section';
+
+  const back = document.createElement('button');
+  back.className = 'btn-back'; back.textContent = '← Expenses';
+  back.onclick = () => { state.view = 'expenses'; renderView(); };
+  section.appendChild(back);
+
+  const titleDiv = document.createElement('div');
+  titleDiv.innerHTML = `<div style="font-size:18px;font-weight:700;margin-bottom:4px">Import Expenses</div><div style="font-size:13px;color:#9a6a6a;margin-bottom:20px">Upload a CSV — works with Chase transaction exports or your Google Sheets export (File → Download → CSV). Vendor rules auto-apply; any uncategorized rows need a category before saving.</div>`;
+  section.appendChild(titleDiv);
+
+  if (!state.importRows || state.importRows.length === 0) {
+    const dropZone = document.createElement('div');
+    dropZone.className = 'import-drop';
+    const fileInp = document.createElement('input');
+    fileInp.type = 'file'; fileInp.accept = '.csv,.txt,.tsv,text/csv,text/plain,application/vnd.ms-excel'; fileInp.style.display = 'none';
+    fileInp.onchange = e => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = ev => {
+        try {
+          const rows = parseAnyCSV(ev.target.result);
+          if (rows.length === 0) { showToast('No purchase transactions found in this file — check it\'s a CSV export, not a PDF'); return; }
+          state.importRows = rows;
+          renderView();
+        } catch (err) {
+          showToast('Error parsing CSV: ' + (err.message || err));
+        }
+      };
+      reader.onerror = () => showToast('Could not read that file — try re-selecting it');
+      reader.readAsText(file);
+    };
+    const pickBtn = document.createElement('button');
+    pickBtn.className = 'btn-primary'; pickBtn.textContent = 'Choose CSV File';
+    pickBtn.onclick = () => fileInp.click();
+    dropZone.innerHTML = `<div style="font-size:36px;margin-bottom:12px">📄</div><div style="font-weight:700;margin-bottom:6px">Choose Chase CSV file</div><div style="font-size:12px;color:#9a6a6a;margin-bottom:18px">Chase → Account Activity → Download → CSV format</div>`;
+    dropZone.appendChild(fileInp);
+    dropZone.appendChild(pickBtn);
+    section.appendChild(dropZone);
+  } else {
+    renderImportReview(section);
+  }
+  view.appendChild(section);
+}
+
+function renderImportReview(section) {
+  const rows = state.importRows;
+  const needsReview = rows.filter(r => !r._category).length;
+  const total = rows.reduce((s, r) => s + r._amount, 0);
+
+  const summary = document.createElement('div');
+  summary.className = 'total-bar';
+  summary.style.marginBottom = '14px';
+  const summaryLeft = document.createElement('div');
+  summaryLeft.innerHTML = `<div style="font-weight:700">${rows.length} transactions</div>`;
+  const flagNote = document.createElement('div');
+  flagNote.id = 'importFlagNote';
+  flagNote.style.cssText = 'font-size:12px;margin-top:4px';
+  flagNote.innerHTML = needsReview > 0
+    ? `<span style="color:#c0392b">⚠ ${needsReview} need a category</span>`
+    : `<span style="color:#2d6a4f">All categorized ✓</span>`;
+  summaryLeft.appendChild(flagNote);
+  summary.appendChild(summaryLeft);
+  const summaryRight = document.createElement('div');
+  summaryRight.className = 'total-bar-amount';
+  summaryRight.textContent = `$${total.toFixed(2)}`;
+  summary.appendChild(summaryRight);
+  section.appendChild(summary);
+
+  rows.forEach((row, idx) => {
+    const card = document.createElement('div');
+    card.className = 'expense-card';
+    if (!row._category) card.classList.add('expense-flag');
+
+    const top = document.createElement('div');
+    top.style.cssText = 'display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px';
+    top.innerHTML = `
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:700;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${row._vendor}</div>
+        <div style="font-size:12px;color:#9a6a6a">${row._date}</div>
+      </div>
+      <div style="font-weight:700;font-size:15px;margin-left:14px;flex-shrink:0">$${row._amount.toFixed(2)}</div>
+    `;
+    card.appendChild(top);
+
+    const sel = document.createElement('select');
+    sel.className = 'input'; sel.style.fontSize = '13px';
+    sel.innerHTML = `<option value="">Select category…</option>` +
+      CATEGORIES.map(c => `<option value="${c}" ${row._category === c ? 'selected' : ''}>${c}</option>`).join('');
+    sel.onchange = e => {
+      state.importRows[idx]._category = e.target.value;
+      card.classList.toggle('expense-flag', !e.target.value);
+      const stillNeeds = state.importRows.filter(r => !r._category).length;
+      const fn = document.getElementById('importFlagNote');
+      if (fn) fn.innerHTML = stillNeeds > 0
+        ? `<span style="color:#c0392b">⚠ ${stillNeeds} need a category</span>`
+        : `<span style="color:#2d6a4f">All categorized ✓</span>`;
+    };
+    card.appendChild(sel);
+    section.appendChild(card);
+  });
+
+  const saveBtn = document.createElement('button');
+  saveBtn.className = 'btn-primary btn-full'; saveBtn.style.marginTop = '12px';
+  saveBtn.textContent = `Save ${rows.length} Expenses`;
+  saveBtn.onclick = async () => {
+    const uncategorized = rows.filter(r => !r._category);
+    if (uncategorized.length > 0) { showToast(`${uncategorized.length} expense(s) still need a category`); return; }
+    saveBtn.textContent = 'Saving…'; saveBtn.disabled = true;
+    const payload = rows.map(r => ({
+      date: r._date, vendor: r._vendor, description: r._desc || '',
+      category: r._category, amount: r._amount,
+      payment_method: r._payment || '', receipt_url: null, notes: r._notes || '',
+    }));
+    const { error } = await db.from('expenses').insert(payload);
+    if (error) { showToast('Error: ' + (error.message || JSON.stringify(error))); saveBtn.textContent = `Save ${rows.length} Expenses`; saveBtn.disabled = false; return; }
+    showToast(`${rows.length} expenses saved ✓`);
+    state.importRows = [];
+    await showExpenses();
+  };
+  section.appendChild(saveBtn);
 }
 
 // ─── PASSWORD ────────────────────────────────────────────────────
