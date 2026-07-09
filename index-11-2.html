@@ -1,0 +1,1997 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="JuGlow">
+<title>JuGlow Studio</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon.png">
+<link rel="apple-touch-icon" sizes="1024x1024" href="icon.png">
+<link rel="icon" type="image/png" href="icon.png">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  body { font-family: -apple-system, 'Inter', system-ui, sans-serif; background: #fdf6f3; color: #3d2020; min-height: 100vh; }
+  #app { max-width: 520px; margin: 0 auto; min-height: 100vh; position: relative; transition: max-width 0.2s; }
+  #app.wide { max-width: 100%; }
+  #app.wide .section { padding: 16px 32px 60px; }
+  #app.wide .header { padding: 14px 32px; }
+
+  /* PASSWORD SCREEN */
+  .lock-screen { position: fixed; inset: 0; background: #fdf6f3; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 9999; padding: 40px 32px; }
+  .lock-logo { width: 110px; height: 110px; border-radius: 24px; object-fit: cover; margin-bottom: 28px; box-shadow: 0 8px 32px rgba(122,74,74,0.18); }
+  .lock-title { font-size: 22px; font-weight: 700; color: #3d2020; margin-bottom: 6px; }
+  .lock-sub { font-size: 13px; color: #9a6a6a; margin-bottom: 32px; }
+  .lock-input { width: 100%; max-width: 280px; padding: 13px 16px; border-radius: 12px; border: 1.5px solid #e8cfc7; background: #fff; color: #3d2020; font-size: 16px; outline: none; text-align: center; font-family: inherit; margin-bottom: 14px; }
+  .lock-input:focus { border-color: #c49090; }
+  .lock-btn { width: 100%; max-width: 280px; padding: 13px; border-radius: 12px; background: #7a4a4a; color: #fff; border: none; font-size: 15px; font-weight: 700; cursor: pointer; font-family: inherit; }
+  .lock-error { color: #c0392b; font-size: 13px; margin-top: 10px; min-height: 18px; }
+  .lock-screen.hidden { display: none; }
+
+  /* HEADER */
+  .header { background: #fff; border-bottom: 1px solid #e8cfc7; padding: 14px 20px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; box-shadow: 0 1px 8px rgba(122,74,74,0.08); }
+  .logo { font-size: 18px; font-weight: 700; color: #7a4a4a; letter-spacing: -0.3px; }
+  .logo-sub { font-size: 10px; color: #9a6a6a; font-weight: 500; letter-spacing: 1px; text-transform: uppercase; }
+
+  /* SECTIONS */
+  .section { padding: 16px 20px 60px; }
+  .section-label { font-size: 11px; font-weight: 700; color: #9a6a6a; text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 10px; }
+  .divider { border-top: 1px solid #e8cfc7; margin: 20px 0; }
+
+  /* CARDS */
+  .card { background: #fff; border-radius: 14px; border: 1px solid #e8cfc7; padding: 16px; margin-bottom: 12px; box-shadow: 0 2px 8px rgba(122,74,74,0.08); }
+  .card-row { display: flex; align-items: center; gap: 14px; cursor: pointer; }
+  .card-row:hover { opacity: 0.85; }
+
+  /* AVATAR */
+  .avatar { width: 42px; height: 42px; border-radius: 50%; background: #f2e0d8; color: #7a4a4a; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; flex-shrink: 0; }
+  .avatar-lg { width: 52px; height: 52px; font-size: 16px; }
+
+  /* BUTTONS */
+  .btn-primary { background: #7a4a4a; color: #fff; padding: 11px 20px; border-radius: 10px; border: none; cursor: pointer; font-weight: 600; font-size: 13px; font-family: inherit; }
+  .btn-primary:active { opacity: 0.85; }
+  .btn-ghost { background: transparent; color: #7a4a4a; padding: 9px 16px; border-radius: 10px; border: 1.5px solid #e8cfc7; cursor: pointer; font-weight: 600; font-size: 13px; font-family: inherit; }
+  .btn-back { background: transparent; border: none; color: #9a6a6a; cursor: pointer; font-weight: 600; font-size: 13px; font-family: inherit; padding: 8px 0; margin-bottom: 8px; display: flex; align-items: center; gap: 4px; }
+  .btn-full { width: 100%; }
+  .btn-pill { padding: 7px 14px; border-radius: 20px; border: 1.5px solid #e8cfc7; background: transparent; color: #9a6a6a; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; transition: all 0.15s; }
+  .btn-pill.active { border-color: #7a4a4a; background: #f2e0d8; color: #7a4a4a; }
+
+  /* INPUTS */
+  .input { width: 100%; padding: 10px 12px; border-radius: 9px; border: 1.5px solid #e8cfc7; background: #fff9f7; color: #3d2020; font-size: 14px; outline: none; font-family: inherit; }
+  .input:focus { border-color: #c49090; }
+  textarea.input { min-height: 76px; resize: vertical; }
+  select.input { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%239a6a6a' d='M6 8L1 3h10z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 32px; }
+  .field { margin-bottom: 18px; }
+  .field label { font-size: 11px; font-weight: 700; color: #9a6a6a; margin-bottom: 6px; display: block; text-transform: uppercase; letter-spacing: 0.6px; }
+  .pill-group { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+
+  /* TAG */
+  .tag { display: inline-block; padding: 3px 10px; border-radius: 20px; background: #f2e0d8; color: #7a4a4a; font-size: 11px; font-weight: 600; }
+
+  /* CONDITIONAL SECTION */
+  .conditional-box { background: #fbece6; border: 1.5px solid #f2e0d8; border-radius: 12px; padding: 16px; margin: 4px 0 16px; }
+  .conditional-label { font-size: 11px; font-weight: 700; color: #7a4a4a; text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 14px; }
+
+  /* SERVICE GRID */
+  .service-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px; }
+  .service-card { background: #fff; border-radius: 14px; border: 1.5px solid #e8cfc7; padding: 14px; cursor: pointer; text-align: left; font-family: inherit; }
+  .service-card:active { background: #fdf0eb; }
+  .service-emoji { font-size: 22px; margin-bottom: 6px; }
+  .service-name { font-size: 12px; font-weight: 700; color: #3d2020; line-height: 1.3; }
+
+  /* TOAST */
+  .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: #7a4a4a; color: #fff; padding: 12px 22px; border-radius: 30px; font-size: 13px; font-weight: 600; z-index: 999; box-shadow: 0 4px 20px rgba(0,0,0,0.2); white-space: nowrap; opacity: 0; transition: opacity 0.2s; pointer-events: none; }
+  .toast.show { opacity: 1; }
+
+  /* LOADING */
+  .loading { display: flex; align-items: center; justify-content: center; padding: 60px 20px; color: #9a6a6a; font-size: 14px; gap: 10px; }
+  .spinner { width: 18px; height: 18px; border: 2px solid #e8cfc7; border-top-color: #7a4a4a; border-radius: 50%; animation: spin 0.7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* VISIT COUNT */
+  .visit-count { text-align: right; }
+  .visit-num { font-size: 22px; font-weight: 700; color: #7a4a4a; }
+  .visit-lbl { font-size: 11px; color: #9a6a6a; }
+
+  /* EMPTY */
+  .empty { text-align: center; color: #9a6a6a; padding: 40px 0; font-size: 14px; }
+
+  /* CONSENT FORMS */
+  .consent-checkbox-item { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 12px; cursor: pointer; }
+  .consent-checkbox-item input[type="checkbox"] { margin-top: 2px; flex-shrink: 0; width: 18px; height: 18px; accent-color: #7a4a4a; cursor: pointer; }
+  .consent-checkbox-item span { font-size: 13px; color: #3d2020; line-height: 1.5; }
+  .signature-canvas-wrap { border: 1.5px solid #e8cfc7; border-radius: 12px; background: #fff; overflow: hidden; position: relative; margin-top: 6px; }
+  .signature-canvas { display: block; width: 100%; touch-action: none; cursor: crosshair; }
+  .signature-clear-btn { position: absolute; top: 8px; right: 10px; background: transparent; border: none; font-size: 12px; color: #9a6a6a; cursor: pointer; font-weight: 600; font-family: inherit; }
+  .consent-history-item { border-left: 3px solid #f2e0d8; padding-left: 12px; margin-bottom: 14px; }
+  .consent-history-date { font-size: 12px; font-weight: 700; color: #7a4a4a; }
+  .consent-history-sig { margin-top: 6px; border: 1px solid #e8cfc7; border-radius: 8px; background: #fff9f7; max-width: 100%; height: 60px; object-fit: contain; }
+
+  /* NAV TABS */
+  .nav-tabs { display: flex; gap: 6px; }
+  .nav-tab { padding: 7px 16px; border-radius: 20px; border: 1.5px solid #e8cfc7; background: transparent; color: #9a6a6a; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; transition: all 0.15s; }
+  .nav-tab.active { border-color: #7a4a4a; background: #7a4a4a; color: #fff; }
+
+  /* EXPENSE CARDS */
+  .expense-card { background: #fff; border-radius: 14px; border: 1px solid #e8cfc7; padding: 14px 16px; margin-bottom: 10px; box-shadow: 0 2px 8px rgba(122,74,74,0.06); }
+  .expense-flag { border-color: #c0392b !important; }
+  .amount-display { font-size: 16px; font-weight: 700; color: #3d2020; }
+  .total-bar { background: #fbece6; border-radius: 14px; border: 1px solid #f2e0d8; padding: 14px 16px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; }
+  .total-bar-label { font-size: 12px; font-weight: 700; color: #9a6a6a; text-transform: uppercase; letter-spacing: 0.6px; }
+  .total-bar-amount { font-size: 22px; font-weight: 700; color: #7a4a4a; }
+  .import-drop { border: 2px dashed #e8cfc7; border-radius: 14px; padding: 40px 20px; text-align: center; background: #fff9f7; }
+
+  /* LISTS */
+  .list-item { display: flex; gap: 10px; align-items: flex-start; margin-bottom: 10px; }
+  .list-dot { width: 5px; height: 5px; border-radius: 50%; background: #c49090; margin-top: 7px; flex-shrink: 0; }
+  .list-item span { font-size: 13.5px; color: #3d2020; line-height: 1.5; }
+</style>
+</head>
+<body>
+<div class="lock-screen" id="lockScreen">
+  <img class="lock-logo" src="icon.png" alt="JuGlow">
+  <div class="lock-title">JuGlow Studio</div>
+  <div class="lock-sub">Enter your password to continue</div>
+  <input class="lock-input" type="password" id="lockInput" placeholder="Password" autocomplete="current-password">
+  <button class="lock-btn" id="lockBtn">Unlock</button>
+  <div class="lock-error" id="lockError"></div>
+</div>
+<div id="app">
+  <div class="header">
+    <div>
+      <div class="logo">JuGlow Studio</div>
+    </div>
+    <div class="nav-tabs">
+      <button class="nav-tab active" id="navClients" onclick="switchSection('clients')">Clients</button>
+      <button class="nav-tab" id="navExpenses" onclick="switchSection('expenses')">Expenses</button>
+      <button class="nav-tab" id="navLists" onclick="switchSection('lists')">Lists</button>
+    </div>
+  </div>
+  <div id="view"></div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+// ─── SUPABASE ────────────────────────────────────────────────────
+const { createClient } = supabase;
+const db = createClient(
+  'https://vaftiwdysiwtgezkbnob.supabase.co',
+  'sb_publishable_p57hiN1celud_VjnM74ryA_cCBTUjLW'
+);
+
+// ─── STATE ───────────────────────────────────────────────────────
+let state = {
+  view: 'clients',
+  clients: [],
+  selectedClient: null,
+  activeService: null,
+  formData: {},
+  detectedConcern: null,
+  savedForms: {},
+  savedNotes: {},
+  savedConsents: [],
+  activeConsentService: null,
+  loading: false,
+  expenseMonth: new Date().toISOString().slice(0, 7),
+  expenseYear: new Date().getFullYear().toString(),
+  expenseViewMode: 'month',
+  expenses: [],
+  expenseForm: {},
+  importRows: [],
+};
+
+// ─── TOAST ───────────────────────────────────────────────────────
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.whiteSpace = msg.length > 40 ? 'normal' : 'nowrap';
+  t.style.maxWidth = msg.length > 40 ? '85%' : 'none';
+  t.classList.add('show');
+  clearTimeout(t._hideTimer);
+  t._hideTimer = setTimeout(() => t.classList.remove('show'), msg.length > 40 ? 6000 : 2500);
+}
+
+// ─── FORM DEFINITIONS ────────────────────────────────────────────
+const SERVICES = {
+  facial: {
+    label: "Facial / Signature Facial", emoji: "✨",
+    base: [
+      { id: "todays_concern", label: "What's going on with your skin right now?", type: "textarea", placeholder: "What's been bothering you lately? Any new concerns or changes since your last visit? What do you want me to focus on today…" },
+      { id: "skin_type", label: "Skin Type", type: "select", options: ["Normal","Dry","Oily","Combination","Sensitive"] },
+      { id: "fitzpatrick", label: "Fitzpatrick Type", type: "select", options: ["I – Very fair","II – Fair","III – Medium","IV – Olive","V – Brown","VI – Deep"] },
+      { id: "primary_concern", label: "Primary Skin Concern", type: "select", options: ["Acne / Breakouts","Hyperpigmentation","Anti-aging / Fine lines","Dryness / Dehydration","Sensitivity / Redness","Uneven texture","General maintenance"], trigger: true },
+      { id: "current_routine", label: "Current skincare routine", type: "textarea", placeholder: "Cleanser, moisturizer, SPF, actives — morning and night if different…" },
+      { id: "medications", label: "Medications / Topicals (including Rx)", type: "textarea", placeholder: "Retinoids, antibiotics, hormonal meds…" },
+      { id: "allergies", label: "Known allergies or sensitivities", type: "text", placeholder: "e.g. fragrance, nuts, latex" },
+      { id: "last_facial", label: "Last professional facial", type: "select", options: ["Never","Within 1 month","1–3 months ago","3–6 months ago","Over 6 months ago"] },
+      { id: "sun_exposure", label: "Sun exposure level", type: "select", options: ["Minimal (indoors mostly)","Moderate","High (outdoor work/sports)"] },
+      { id: "spf_daily", label: "Do you wear SPF daily?", type: "radio", options: ["Yes","No","Sometimes"] },
+      { id: "water_intake", label: "Daily water intake", type: "select", options: ["Less than 4 cups","4–6 cups","7–8 cups","8+ cups"] },
+      { id: "stress_level", label: "Current stress level", type: "radio", options: ["Low","Moderate","High"] },
+      { id: "sleep", label: "Average sleep per night", type: "select", options: ["Less than 5 hrs","5–6 hrs","7–8 hrs","8+ hrs"] },
+      { id: "pregnant", label: "Pregnant or nursing?", type: "radio", options: ["Yes","No"] },
+      { id: "notes_general", label: "Anything else I should know?", type: "textarea", placeholder: "Upcoming events, recent procedures, new products tried…" },
+    ],
+    conditional: {
+      "Acne / Breakouts": [
+        { id: "acne_type", label: "Type of breakouts", type: "multicheck", options: ["Whiteheads","Blackheads","Papules","Pustules","Cysts / Nodules","Hormonal (jaw/chin)","Closed comedones"] },
+        { id: "acne_location", label: "Where do breakouts appear most?", type: "multicheck", options: ["Forehead","Nose","Cheeks","Chin / Jaw","Temples","Chest / Back","All over"] },
+        { id: "acne_duration", label: "How long have you had acne?", type: "select", options: ["Less than 6 months","6–12 months","1–3 years","3+ years","Since teens"] },
+        { id: "acne_cycle", label: "Does it flare around your cycle?", type: "radio", options: ["Yes","No","Not applicable"] },
+        { id: "acne_triggers", label: "Known or suspected triggers", type: "multicheck", options: ["Hormones / cycle","Stress","Diet (dairy/sugar)","Certain products","Sweating / gym","Not sure"] },
+        { id: "acne_rx", label: "Any acne Rx?", type: "radio", options: ["Yes – currently on","Yes – in the past","No"] },
+        { id: "acne_rx_detail", label: "If yes, what?", type: "text", placeholder: "Accutane, Spiro, doxycycline, tretinoin…" },
+        { id: "acne_picking", label: "Do you pick or squeeze?", type: "radio", options: ["Yes, often","Sometimes","No"] },
+        { id: "acne_scarring", label: "Post-acne marks or scarring?", type: "multicheck", options: ["PIH (dark spots)","PIE (pink/red marks)","Textural scarring","Ice pick scars","Not much"] },
+        { id: "acne_products", label: "Current acne-targeting products", type: "textarea", placeholder: "BP, salicylic acid, niacinamide, AHAs…" },
+        { id: "acne_tried", label: "What have you tried that didn't work?", type: "textarea", placeholder: "Products, facials, diets that didn't help…" },
+      ],
+      "Hyperpigmentation": [
+        { id: "pigment_type", label: "Type of pigmentation", type: "multicheck", options: ["Post-acne (PIH)","Melasma","Sun spots / Lentigines","Overall uneven tone","Freckles","Not sure"] },
+        { id: "pigment_onset", label: "When did it start?", type: "select", options: ["Recent (under 6 months)","1–2 years","Long-term (3+ years)","Since pregnancy","After a skin injury","Slowly over time"] },
+        { id: "pigment_location", label: "Where is it most noticeable?", type: "multicheck", options: ["Forehead","Upper lip","Cheeks","Under eyes","Chin","Temples","All over face"] },
+        { id: "pigment_worsens", label: "Does it get worse in summer / sun?", type: "radio", options: ["Yes, noticeably","Slightly","No","Not sure"] },
+        { id: "actives_used", label: "Brightening actives currently using", type: "multicheck", options: ["Vitamin C","Niacinamide","Alpha arbutin","Kojic acid","Tranexamic acid","Azelaic acid","Thiamidol","None"] },
+        { id: "peels_before", label: "Previous chemical peels for pigmentation?", type: "radio", options: ["Yes","No"] },
+        { id: "pigment_laser", label: "Any laser or light treatments done?", type: "radio", options: ["Yes","No"] },
+        { id: "pigment_laser_detail", label: "If yes, what and when?", type: "text", placeholder: "e.g. IPL 6 months ago" },
+        { id: "pigment_goal", label: "What does improvement look like to you?", type: "textarea", placeholder: "Even tone, lighter spots, no more new spots forming…" },
+      ],
+      "Anti-aging / Fine lines": [
+        { id: "aging_concerns", label: "Specific concerns", type: "multicheck", options: ["Fine lines","Deep wrinkles","Loss of firmness / sagging","Dullness / lack of radiance","Hollow cheeks or temples","Neck / décolletage","Under-eye area","Overall volume loss"] },
+        { id: "aging_onset", label: "When did you first notice these changes?", type: "select", options: ["Recently (under 1 year)","1–3 years ago","3–5 years ago","5+ years ago"] },
+        { id: "retinoid_use", label: "Currently using a retinoid?", type: "radio", options: ["Yes – OTC (retinol)","Yes – Rx (tretinoin)","No, never tried","Tried and stopped"] },
+        { id: "retinoid_freq", label: "If yes, how often?", type: "select", options: ["Every night","A few times a week","Once a week","N/A"] },
+        { id: "peptides_used", label: "Peptides or collagen-support products?", type: "radio", options: ["Yes","No","Not sure what those are"] },
+        { id: "injectables", label: "Botox or fillers?", type: "radio", options: ["Yes – current","Yes – past only","No"] },
+        { id: "injectables_detail", label: "If yes, area and how recent?", type: "text", placeholder: "e.g. forehead Botox 3 months ago" },
+        { id: "gua_sha", label: "Gua sha, facial massage, or tools?", type: "radio", options: ["Yes, regularly","Occasionally","No"] },
+        { id: "aging_goal", label: "What are you hoping to improve most?", type: "textarea", placeholder: "Glow, lift, smooth lines, overall refresh…" },
+      ],
+      "Dryness / Dehydration": [
+        { id: "dry_vs_dehydrated", label: "How does your skin feel?", type: "radio", options: ["Tight and flaky (dry)","Dull and congested (dehydrated)","Both","Not sure"] },
+        { id: "dry_when", label: "When is dryness worst?", type: "multicheck", options: ["All day","After cleansing","In the morning","In the evening","Winter months only","Year-round"] },
+        { id: "dry_location", label: "Where is it most noticeable?", type: "multicheck", options: ["All over","Cheeks","Around mouth","Around eyes","Forehead","Nose area"] },
+        { id: "moisturizer_type", label: "Current moisturizer", type: "text", placeholder: "Brand and product name if known…" },
+        { id: "barrier_products", label: "Any barrier-support ingredients in routine?", type: "multicheck", options: ["Hyaluronic acid","Ceramides","Squalane","Centella / Cica","Occlusives (Vaseline, Aquaphor)","None"] },
+        { id: "cleanser_type", label: "Type of cleanser used", type: "select", options: ["Foaming / gel","Cream / milk","Oil cleanser","Micellar water","Bar soap","Not sure"] },
+        { id: "dry_environment", label: "Work or home environment", type: "multicheck", options: ["Heavy AC","Heated indoor air","Outdoor elements","Fly frequently","Dry climate"] },
+        { id: "dry_peeling", label: "Any flaking or peeling skin currently?", type: "radio", options: ["Yes","No"] },
+        { id: "dry_exfoliate", label: "Do you exfoliate?", type: "radio", options: ["Yes, regularly","Occasionally","No — skin too dry"] },
+      ],
+      "Sensitivity / Redness": [
+        { id: "redness_type", label: "How would you describe the redness?", type: "multicheck", options: ["General flush / all-over pink","Patches of redness","Visible broken capillaries","Around nose and cheeks","Comes and goes","Always there"] },
+        { id: "redness_diagnosis", label: "Ever diagnosed with rosacea or eczema?", type: "radio", options: ["Rosacea","Eczema","Both","No diagnosis","Suspected but unconfirmed"] },
+        { id: "redness_triggers", label: "What triggers flare-ups?", type: "multicheck", options: ["Heat / hot showers","Spicy food / alcohol","Stress","Fragrance in products","Sun exposure","Exercise","Certain foods","Not sure"] },
+        { id: "redness_products", label: "Products that have caused reactions", type: "textarea", placeholder: "Anything that stung, burned, or made redness worse…" },
+        { id: "redness_soothing", label: "What helps calm it?", type: "text", placeholder: "Cold water, certain products, nothing works…" },
+        { id: "sensitivity_exfoliation", label: "Do you currently exfoliate?", type: "radio", options: ["Yes – physical scrub","Yes – chemical exfoliant","No, too reactive","Occasionally"] },
+        { id: "fragrance_free", label: "Using fragrance-free products?", type: "radio", options: ["Yes, strictly","Some products are","No"] },
+        { id: "barrier_status", label: "How does your barrier feel overall?", type: "radio", options: ["Very reactive / compromised","Sometimes sensitive","Seems okay most days"] },
+      ],
+      "Uneven texture": [
+        { id: "texture_type", label: "Type of texture concern", type: "multicheck", options: ["Rough / bumpy overall","Large / visible pores","Closed comedones (small bumps)","Textural scarring","Dry flaky patches","Orange-peel texture"] },
+        { id: "texture_location", label: "Where is texture most noticeable?", type: "multicheck", options: ["Forehead","Cheeks","Nose","Chin","All over"] },
+        { id: "texture_exfoliation", label: "Current exfoliation in routine", type: "multicheck", options: ["AHA (glycolic, lactic)","BHA (salicylic)","PHA","Physical scrub","Enzyme mask","Nothing currently"] },
+        { id: "texture_exfol_freq", label: "How often do you exfoliate?", type: "select", options: ["Daily","2–3x per week","Once a week","Occasionally","Never"] },
+        { id: "texture_pores", label: "Are enlarged pores the main issue?", type: "radio", options: ["Yes, mainly pores","Yes, along with texture","Not really"] },
+        { id: "texture_congestion", label: "Congestion or blackheads present?", type: "radio", options: ["Yes, a lot","Some","No"] },
+        { id: "texture_goal", label: "What does smooth skin look like to you?", type: "textarea", placeholder: "Describe what you're hoping to see…" },
+      ],
+      "General maintenance": [
+        { id: "maint_goal", label: "What does your ideal skin look like?", type: "textarea", placeholder: "Glowy, even tone, clear, hydrated, bouncy…" },
+        { id: "maint_frequency", label: "How often are you thinking of coming in?", type: "select", options: ["Monthly","Every 6 weeks","Quarterly","As needed","Not sure yet"] },
+        { id: "maint_biggest_win", label: "If you could fix one thing about your skin?", type: "text", placeholder: "Even if it seems minor…" },
+      ],
+    },
+  },
+  peel: {
+    label: "Chemical Peel", emoji: "🧪",
+    base: [
+      { id: "todays_concern", label: "What's your main goal for this peel?", type: "textarea", placeholder: "What's been bothering you most — pigmentation, acne, texture, lines? What does success look like after a series…" },
+      { id: "skin_type", label: "Skin Type", type: "select", options: ["Normal","Dry","Oily","Combination","Sensitive"] },
+      { id: "fitzpatrick", label: "Fitzpatrick Type", type: "select", options: ["I – Very fair","II – Fair","III – Medium","IV – Olive","V – Brown","VI – Deep"] },
+      { id: "primary_concern", label: "Primary concern being treated", type: "select", options: ["Acne / Breakouts","Post-acne marks (PIH)","Hyperpigmentation / Melasma","Anti-aging / Fine lines","Uneven texture","General skin refresh"] },
+      { id: "peel_history", label: "Previous chemical peels?", type: "radio", options: ["Yes","No"] },
+      { id: "peel_type_prev", label: "If yes — type, depth, and how recent?", type: "text", placeholder: "e.g. lactic 30%, superficial, 3 months ago" },
+      { id: "peel_reaction", label: "Any reaction to a previous peel?", type: "radio", options: ["No, tolerated well","Slight irritation","Significant reaction / hyperpigmentation","N/A"] },
+      { id: "retinoids", label: "Currently using retinoids / tretinoin?", type: "radio", options: ["Yes – stopped as directed","Yes – still using (flag)","No"] },
+      { id: "retinoid_stop_date", label: "If stopped, when?", type: "text", placeholder: "e.g. stopped 5 days ago" },
+      { id: "actives_current", label: "Other actives currently in routine", type: "multicheck", options: ["AHAs (glycolic/lactic)","BHAs (salicylic)","Vitamin C","Benzoyl peroxide","Exfoliating toner","None"] },
+      { id: "waxed_recently", label: "Waxed, threaded, or lasered in last 7–14 days?", type: "radio", options: ["Yes","No"] },
+      { id: "accutane", label: "Accutane — current or past?", type: "select", options: ["Currently on","Off — under 6 months","Off — 6–12 months","Off — over 12 months","Never"] },
+      { id: "antibiotics", label: "Currently on antibiotics?", type: "radio", options: ["Yes","No"] },
+      { id: "hormonal_meds", label: "Hormonal medications (birth control, HRT)?", type: "radio", options: ["Yes","No"] },
+      { id: "blood_thinners", label: "Blood thinners or daily aspirin?", type: "radio", options: ["Yes","No"] },
+      { id: "medications_other", label: "Any other medications or supplements?", type: "textarea", placeholder: "List anything else — including vitamins, fish oil, herbs…" },
+      { id: "sun_recent", label: "Sun exposure in the last 2 weeks", type: "select", options: ["None","Minimal","Moderate","High / possible sunburn"] },
+      { id: "tanning", label: "Tanning bed or spray tan recently?", type: "radio", options: ["Yes – tanning bed","Yes – spray tan","No"] },
+      { id: "cold_sore_history", label: "History of cold sores (HSV)?", type: "radio", options: ["Yes, get them occasionally","Yes, rarely","No"] },
+      { id: "open_wounds", label: "Active cold sores, open lesions, or eczema in area?", type: "radio", options: ["Yes","No"] },
+      { id: "spf_daily", label: "Committed to SPF 30+ daily after peel?", type: "radio", options: ["Yes, already do","Yes, I'll start","Not sure"] },
+      { id: "downtime_ok", label: "Comfortable with potential peeling / flaking?", type: "radio", options: ["Yes, fine with it","Prefer minimal downtime","I have an event coming up"] },
+      { id: "event_date", label: "Upcoming event? (be specific — timing matters)", type: "text", placeholder: "e.g. wedding July 5 — we need to plan around this" },
+      { id: "allergies", label: "Known allergies (aspirin = salicylates, fragrance, etc.)", type: "text", placeholder: "Salicylates, lactic acid, fragrances, latex…" },
+      { id: "pregnant", label: "Pregnant or nursing?", type: "radio", options: ["Yes","No"] },
+    ],
+    conditional: {},
+  },
+  lash: {
+    label: "Lash Services", emoji: "👁️",
+    base: [
+      { id: "service_type", label: "Service requested", type: "select", options: ["Lash lift","Lash tint","Lift + tint combo"] },
+      { id: "lash_length", label: "Natural lash length", type: "select", options: ["Short","Medium","Long"] },
+      { id: "lash_texture", label: "Natural lash texture", type: "select", options: ["Straight","Slightly curved","Already curled"] },
+      { id: "lash_thickness", label: "Lash thickness", type: "select", options: ["Fine / sparse","Medium","Thick"] },
+      { id: "lash_history", label: "Previous lash lift?", type: "radio", options: ["Yes","No"] },
+      { id: "lash_last", label: "If yes, how long ago?", type: "select", options: ["Less than 6 weeks","6–8 weeks","Over 8 weeks","N/A"] },
+      { id: "lash_damage", label: "Any lash damage or breakage currently?", type: "radio", options: ["Yes","No"] },
+      { id: "extensions_recent", label: "Had lash extensions removed recently?", type: "radio", options: ["Yes – under 4 weeks","Yes – over 4 weeks","No"] },
+      { id: "eye_sensitivity", label: "Sensitive eyes / contact lenses?", type: "radio", options: ["Yes – contacts","Yes – sensitive eyes","Both","No"] },
+      { id: "allergies", label: "Known allergies (esp. latex, adhesives, dyes)", type: "text", placeholder: "e.g. latex, PPD in hair dye, henna" },
+      { id: "medications_eye", label: "Eye drops or medications affecting eyes?", type: "radio", options: ["Yes","No"] },
+      { id: "pregnant", label: "Pregnant or nursing?", type: "radio", options: ["Yes","No"] },
+      { id: "lash_goal", label: "Desired look / outcome", type: "select", options: ["Natural lift – subtle","Noticeable curl / wide-eye effect","Dark tint only","Full lift and dark tint"] },
+      { id: "lash_notes", label: "Anything else about your lashes?", type: "textarea", placeholder: "Concerns, past reactions, what you want me to know…" },
+    ],
+    conditional: {},
+  },
+  lamination: {
+    label: "Eyebrow Lamination", emoji: "🪄",
+    base: [
+      { id: "service_type", label: "Service requested", type: "select", options: ["Lamination only","Lamination + tint","Lamination + tint + wax"] },
+      { id: "lam_prior", label: "Had a brow lamination or similar chemical brow treatment before? Any reaction?", type: "textarea", placeholder: "When, where, and how your skin/hair responded…" },
+      { id: "lam_allergy", label: "Known allergy to thioglycolate, cysteamine, or related solutions?", type: "radio", options: ["Yes","No","Not sure"] },
+      { id: "lam_recent_tint", label: "Tinted, tweezed, waxed, or microbladed brows in the last 2 weeks?", type: "radio", options: ["Yes","No"] },
+      { id: "lam_actives", label: "Using retinoids, acids, or medicated creams near the brow area?", type: "radio", options: ["Yes","No"] },
+      { id: "lam_skin_condition", label: "Any skin conditions on the brow area (eczema, dermatitis, psoriasis)?", type: "radio", options: ["Yes","No"] },
+      { id: "lam_skin_detail", label: "If yes, please describe", type: "text", placeholder: "Where it is and how it currently looks/feels…" },
+      { id: "lam_brow_density", label: "Current brow density", type: "select", options: ["Sparse / over-tweezed","Medium","Full / thick"] },
+      { id: "lam_goal", label: "Desired result", type: "select", options: ["Fuller looking","More lifted / uniform","Tamed, brushed-up look","Not sure — open to suggestions"] },
+      { id: "pregnant", label: "Pregnant or nursing?", type: "radio", options: ["Yes","No"] },
+      { id: "lam_keloid", label: "History of keloid scarring or unusual reactions to salon treatments?", type: "radio", options: ["Yes","No"] },
+      { id: "allergies", label: "Other known allergies", type: "text", placeholder: "Latex, fragrance, adhesives…" },
+      { id: "lam_notes", label: "Anything else about your brows?", type: "textarea", placeholder: "Concerns, past reactions, what you want me to know…" },
+    ],
+    conditional: {},
+  },
+  waxing: {
+    label: "Body Waxing", emoji: "🌿",
+    base: [
+      { id: "area", label: "Area(s) to be waxed today", type: "multicheck", options: ["Brow","Upper lip","Chin","Full face","Underarms","Arms","Legs (half)","Legs (full)","Bikini","Brazilian","Back","Chest / Stomach"] },
+      { id: "skin_sensitivity", label: "General skin sensitivity", type: "select", options: ["Normal","Sensitive","Very sensitive / reactive"] },
+      { id: "wax_history", label: "Waxed this area before?", type: "radio", options: ["Yes","No"] },
+      { id: "wax_last", label: "Last wax or hair removal method?", type: "text", placeholder: "e.g. shaved 3 days ago, waxed 5 weeks ago" },
+      { id: "hair_texture", label: "Hair texture in area", type: "select", options: ["Fine","Medium","Coarse / thick"] },
+      { id: "ingrown_prone", label: "Prone to ingrown hairs?", type: "radio", options: ["Yes","No","Sometimes"] },
+      { id: "retinoids", label: "Using retinoids on area to be waxed?", type: "radio", options: ["Yes – currently","Stopped recently","No"] },
+      { id: "accutane", label: "On Accutane or off within 6 months?", type: "radio", options: ["Yes","No"] },
+      { id: "blood_thinners", label: "On blood thinners or antibiotics?", type: "radio", options: ["Yes","No"] },
+      { id: "sun_recent", label: "Sunburned or heavily tanned in area?", type: "radio", options: ["Yes","No"] },
+      { id: "skin_conditions", label: "Any skin conditions in area?", type: "multicheck", options: ["Eczema","Psoriasis","Active breakouts","Keratosis Pilaris","Open wounds / cuts","None"] },
+      { id: "allergies", label: "Known allergies (esp. rosin / colophony in wax)", type: "text", placeholder: "Wax ingredients, fragrances, pine resin…" },
+      { id: "pregnant", label: "Pregnant?", type: "radio", options: ["Yes","No"] },
+      { id: "wax_notes", label: "Anything else?", type: "textarea", placeholder: "Sensitivities, areas to be careful with, preferences…" },
+    ],
+    conditional: {},
+  },
+};
+
+// ─── EXPENSE CONSTANTS ───────────────────────────────────────────
+const CATEGORIES = ['Supplies','Equipment','Furniture','Education','Marketing','Registration','Software/Subscriptions','Phone/Utilities','Other'];
+
+const VENDOR_RULES = [
+  { pattern: /claude|anthropic/i, category: 'Software/Subscriptions' },
+  { pattern: /tello/i, category: 'Phone/Utilities' },
+  { pattern: /at&t|att\b/i, category: 'Phone/Utilities' },
+  { pattern: /hobby lobby/i, category: 'Supplies' },
+  { pattern: /michaels/i, category: 'Supplies' },
+  { pattern: /skin script/i, category: 'Supplies' },
+  { pattern: /five below/i, category: 'Supplies' },
+  { pattern: /staples/i, category: 'Supplies' },
+  { pattern: /wayfair/i, category: 'Furniture' },
+];
+
+const ALWAYS_ASK_VENDORS = [/amazon/i, /target/i, /temu/i, /walmart/i, /canva/i];
+
+function guessCategory(str) {
+  for (const rule of VENDOR_RULES) {
+    if (rule.pattern.test(str)) return rule.category;
+  }
+  return null;
+}
+
+function isAlwaysAsk(str) {
+  return ALWAYS_ASK_VENDORS.some(p => p.test(str));
+}
+
+function formatMonth(ym) {
+  const [y, m] = ym.split('-');
+  return new Date(y, m - 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+}
+
+function toTitleCase(str) {
+  return str.toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+}
+
+function parseCSVLine(line) {
+  const result = [];
+  let current = '';
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    if (line[i] === '"') { inQuotes = !inQuotes; }
+    else if (line[i] === ',' && !inQuotes) { result.push(current); current = ''; }
+    else { current += line[i]; }
+  }
+  result.push(current);
+  return result;
+}
+
+function parseAnyCSV(text) {
+  const clean = text.replace(/^﻿/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  const lines = clean.trim().split('\n');
+  const header = parseCSVLine(lines[0]).map(h => h.trim().replace(/"/g, '').toLowerCase());
+  // Auto-detect format by headers
+  if (header.includes('vendor') || header.includes('payment')) {
+    return parseSpreadsheetCSV(lines, header);
+  }
+  return parseChaseCSV(text);
+}
+
+function parseSpreadsheetCSV(lines, header) {
+  const rows = [];
+  for (let i = 1; i < lines.length; i++) {
+    const cols = parseCSVLine(lines[i]);
+    if (cols.length < 2) continue;
+    const row = {};
+    header.forEach((h, idx) => { row[h] = (cols[idx] || '').replace(/"/g, '').trim(); });
+
+    const dateRaw = row['date'] || '';
+    const vendor = row['vendor'] || '';
+    const description = row['description'] || '';
+    const amtStr = (row['amount'] || '0').replace(/[$,]/g, '');
+    const amount = parseFloat(amtStr);
+    const category = row['category'] || '';
+    const payment = row['payment'] || '';
+    const notes = row['notes'] || '';
+
+    if (!vendor || isNaN(amount) || amount <= 0) continue;
+
+    // Convert MM/DD/YY or MM/DD/YYYY to YYYY-MM-DD
+    const dp = dateRaw.split('/');
+    let date = dateRaw;
+    if (dp.length === 3) {
+      const yr = dp[2].length === 2 ? '20' + dp[2] : dp[2];
+      date = `${yr}-${dp[0].padStart(2,'0')}-${dp[1].padStart(2,'0')}`;
+    }
+
+    // Map category to our standard list (case-insensitive fuzzy match)
+    const catMatch = CATEGORIES.find(c => c.toLowerCase() === category.toLowerCase())
+      || CATEGORIES.find(c => category.toLowerCase().includes(c.toLowerCase().split('/')[0].toLowerCase()))
+      || '';
+
+    rows.push({
+      _date: date,
+      _vendor: vendor,
+      _desc: description,
+      _amount: amount,
+      _category: catMatch,
+      _payment: payment,
+      _notes: notes,
+    });
+  }
+  return rows;
+}
+
+function parseChaseCSV(text) {
+  // Strip BOM and normalize line endings
+  const clean = text.replace(/^﻿/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  const lines = clean.trim().split('\n');
+  const header = parseCSVLine(lines[0]).map(h => h.trim().replace(/"/g, '').toLowerCase());
+
+  const rows = [];
+  for (let i = 1; i < lines.length; i++) {
+    const cols = parseCSVLine(lines[i]);
+    if (cols.length < 3) continue;
+    const row = {};
+    header.forEach((h, idx) => { row[h] = (cols[idx] || '').replace(/"/g, '').trim(); });
+
+    const dateRaw = row['transaction date'] || row['posting date'] || row['date'] || '';
+    const desc = row['description'] || row['merchant name'] || row['name'] || '';
+    const amtStr = row['amount'] || row['debit'] || '0';
+    const amtRaw = parseFloat(amtStr.replace(/[$,]/g, ''));
+    const typeCol = (row['type'] || row['transaction type'] || '').toLowerCase();
+
+    // Chase: purchases = negative amount, OR type contains "sale"/"debit"
+    const isDebit = (!isNaN(amtRaw) && amtRaw < 0) ||
+                    (typeCol && (typeCol.includes('sale') || typeCol.includes('debit')));
+    if (!isDebit || isNaN(amtRaw)) continue;
+
+    const dp = dateRaw.split('/');
+    const date = dp.length === 3
+      ? `${dp[2]}-${dp[0].padStart(2,'0')}-${dp[1].padStart(2,'0')}`
+      : dateRaw;
+    const vendor = toTitleCase(desc.replace(/#\d+/g, '').replace(/\s+/g, ' ').trim());
+    const amount = Math.abs(amtRaw);
+    const autocat = guessCategory(vendor) || guessCategory(desc);
+    const askCat = isAlwaysAsk(vendor) || isAlwaysAsk(desc);
+    rows.push({ _date: date, _vendor: vendor, _desc: desc, _amount: amount, _category: (autocat && !askCat) ? autocat : '' });
+  }
+  return rows;
+}
+
+function makeField(labelText, inputFn) {
+  const wrap = document.createElement('div');
+  wrap.className = 'field';
+  const lbl = document.createElement('label');
+  lbl.textContent = labelText;
+  wrap.appendChild(lbl);
+  wrap.appendChild(inputFn());
+  return wrap;
+}
+
+function makeCategorySelect(ef, autoTagEl) {
+  const sel = document.createElement('select');
+  sel.className = 'input';
+  sel.innerHTML = '<option value="">Select category…</option>' +
+    CATEGORIES.map(c => `<option value="${c}" ${ef.category === c ? 'selected' : ''}>${c}</option>`).join('');
+  sel.onchange = e => { ef.category = e.target.value; };
+  return sel;
+}
+
+function switchSection(section) {
+  if (section === 'clients') { showClients(); }
+  else if (section === 'expenses') { showExpenses(); }
+  else if (section === 'lists') { state.view = 'lists'; renderView(); }
+}
+
+function updateNav() {
+  const isExp = ['expenses', 'addExpense', 'importCSV'].includes(state.view);
+  const isLists = state.view === 'lists';
+  const nc = document.getElementById('navClients');
+  const ne = document.getElementById('navExpenses');
+  const nl = document.getElementById('navLists');
+  if (nc) nc.classList.toggle('active', !isExp && !isLists);
+  if (ne) ne.classList.toggle('active', isExp);
+  if (nl) nl.classList.toggle('active', isLists);
+}
+
+// ─── RENDER ENGINE ───────────────────────────────────────────────
+function render(html) {
+  document.getElementById('view').innerHTML = html;
+}
+
+function el(tag, attrs, ...children) {
+  const e = document.createElement(tag);
+  if (attrs) Object.entries(attrs).forEach(([k,v]) => {
+    if (k === 'class') e.className = v;
+    else if (k.startsWith('on')) e.addEventListener(k.slice(2).toLowerCase(), v);
+    else e.setAttribute(k, v);
+  });
+  children.forEach(c => {
+    if (typeof c === 'string') e.appendChild(document.createTextNode(c));
+    else if (c) e.appendChild(c);
+  });
+  return e;
+}
+
+// ─── FIELD RENDERER ──────────────────────────────────────────────
+function renderField(field) {
+  const val = state.formData[field.id] || (field.type === 'multicheck' ? [] : '');
+  const wrap = document.createElement('div');
+  wrap.className = 'field';
+
+  const lbl = document.createElement('label');
+  lbl.textContent = field.label;
+  wrap.appendChild(lbl);
+
+  if (field.type === 'select') {
+    const sel = document.createElement('select');
+    sel.className = 'input';
+    sel.innerHTML = `<option value="">Select…</option>` + field.options.map(o => `<option value="${o}" ${val===o?'selected':''}>${o}</option>`).join('');
+    sel.onchange = e => {
+      state.formData[field.id] = e.target.value;
+      if (field.trigger) { state.detectedConcern = e.target.value; renderView(); }
+    };
+    wrap.appendChild(sel);
+  } else if (field.type === 'text') {
+    const inp = document.createElement('input');
+    inp.className = 'input'; inp.type = 'text';
+    inp.value = val; inp.placeholder = field.placeholder || '';
+    inp.oninput = e => state.formData[field.id] = e.target.value;
+    wrap.appendChild(inp);
+  } else if (field.type === 'textarea') {
+    const ta = document.createElement('textarea');
+    ta.className = 'input'; ta.value = val;
+    ta.placeholder = field.placeholder || '';
+    ta.oninput = e => state.formData[field.id] = e.target.value;
+    wrap.appendChild(ta);
+  } else if (field.type === 'radio') {
+    const grp = document.createElement('div');
+    grp.className = 'pill-group';
+    field.options.forEach(o => {
+      const btn = document.createElement('button');
+      btn.className = 'btn-pill' + (val === o ? ' active' : '');
+      btn.textContent = o;
+      btn.onclick = () => { state.formData[field.id] = o; renderView(); };
+      grp.appendChild(btn);
+    });
+    wrap.appendChild(grp);
+  } else if (field.type === 'multicheck') {
+    const grp = document.createElement('div');
+    grp.className = 'pill-group';
+    field.options.forEach(o => {
+      const checked = val.includes(o);
+      const btn = document.createElement('button');
+      btn.className = 'btn-pill' + (checked ? ' active' : '');
+      btn.textContent = o;
+      btn.onclick = () => {
+        const cur = state.formData[field.id] || [];
+        state.formData[field.id] = checked ? cur.filter(x => x !== o) : [...cur, o];
+        renderView();
+      };
+      grp.appendChild(btn);
+    });
+    wrap.appendChild(grp);
+  }
+  return wrap;
+}
+
+// ─── VIEWS ───────────────────────────────────────────────────────
+async function showClients() {
+  state.view = 'clients';
+  render(`<div class="loading"><div class="spinner"></div> Loading clients…</div>`);
+  const { data, error } = await db.from('clients').select('*').order('name');
+  if (error) { render(`<div class="empty">Error loading clients</div>`); return; }
+  state.clients = data || [];
+  renderView();
+}
+
+function renderView() {
+  const view = document.getElementById('view');
+  view.innerHTML = '';
+  updateNav();
+  const isWide = ['expenses','importCSV'].includes(state.view);
+  document.getElementById('app').classList.toggle('wide', isWide);
+
+  if (state.view === 'clients') {
+    renderClientList(view);
+  } else if (state.view === 'newclient') {
+    renderNewClient(view);
+  } else if (state.view === 'client') {
+    renderClientDetail(view);
+  } else if (state.view === 'form') {
+    renderForm(view);
+  } else if (state.view === 'notes') {
+    renderNotes(view);
+  } else if (state.view === 'consent') {
+    renderConsent(view);
+  } else if (state.view === 'expenses') {
+    renderExpenses(view);
+  } else if (state.view === 'addExpense') {
+    renderAddExpense(view);
+  } else if (state.view === 'importCSV') {
+    renderImportCSV(view);
+  } else if (state.view === 'lists') {
+    renderLists(view);
+  }
+}
+
+function renderClientList(view) {
+  const section = document.createElement('div');
+  section.className = 'section';
+
+  // Header row
+  const hdr = document.createElement('div');
+  hdr.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-bottom:16px';
+  const title = document.createElement('div');
+  title.innerHTML = `<div style="font-size:20px;font-weight:700">Clients</div><div style="font-size:13px;color:#9a6a6a">${state.clients.length} total</div>`;
+  const newBtn = document.createElement('button');
+  newBtn.className = 'btn-primary'; newBtn.textContent = '+ New Client';
+  newBtn.onclick = () => { state.view = 'newclient'; renderView(); };
+  hdr.appendChild(title); hdr.appendChild(newBtn);
+  section.appendChild(hdr);
+
+  // Search
+  const search = document.createElement('input');
+  search.className = 'input'; search.placeholder = 'Search clients…';
+  search.style.marginBottom = '14px';
+  search.oninput = e => {
+    const q = e.target.value.toLowerCase();
+    listWrap.innerHTML = '';
+    renderClientCards(state.clients.filter(c => c.name.toLowerCase().includes(q)), listWrap);
+  };
+  section.appendChild(search);
+
+  const listWrap = document.createElement('div');
+  renderClientCards(state.clients, listWrap);
+  section.appendChild(listWrap);
+  view.appendChild(section);
+}
+
+function renderClientCards(clients, wrap) {
+  if (clients.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'empty'; empty.textContent = 'No clients found';
+    wrap.appendChild(empty); return;
+  }
+  clients.forEach(c => {
+    const card = document.createElement('div');
+    card.className = 'card card-row';
+    card.innerHTML = `
+      <div class="avatar">${c.avatar || '??'}</div>
+      <div style="flex:1">
+        <div style="font-weight:700;font-size:15px">${c.name}</div>
+        <div style="font-size:12px;color:#9a6a6a;margin-top:2px">${c.phone || ''} · Last visit ${c.last_visit || '—'}</div>
+      </div>
+      <span class="tag">${c.visits || 0} visit${(c.visits||0) !== 1 ? 's' : ''}</span>
+    `;
+    card.onclick = () => { state.selectedClient = c; loadClientDetail(); };
+    wrap.appendChild(card);
+  });
+}
+
+async function loadClientDetail() {
+  state.view = 'client';
+  render(`<div class="loading"><div class="spinner"></div> Loading…</div>`);
+  const cid = state.selectedClient.id;
+  const [fr, nr, cr] = await Promise.all([
+    db.from('forms').select('*').eq('client_id', cid),
+    db.from('visit_notes').select('*').eq('client_id', cid).order('created_at', { ascending: false }),
+    db.from('consents').select('*').eq('client_id', cid).order('created_at', { ascending: false })
+  ]);
+  state.savedForms = {};
+  (fr.data || []).forEach(f => state.savedForms[f.service] = f);
+  state.savedNotes = nr.data || [];
+  state.savedConsents = cr.data || [];
+  renderView();
+}
+
+function renderNewClient(view) {
+  const section = document.createElement('div');
+  section.className = 'section';
+
+  const back = document.createElement('button');
+  back.className = 'btn-back'; back.textContent = '← Back';
+  back.onclick = () => { state.view = 'clients'; renderView(); };
+  section.appendChild(back);
+
+  const title = document.createElement('div');
+  title.textContent = 'New Client';
+  title.style.cssText = 'font-size:18px;font-weight:700;margin-bottom:20px';
+  section.appendChild(title);
+
+  const fields = [['name','Name','Full name','text'],['phone','Phone','203-555-0000','tel'],['email','Email','email@example.com','email']];
+  const vals = {};
+  fields.forEach(([id, label, ph, type]) => {
+    const wrap = document.createElement('div');
+    wrap.style.marginBottom = '14px';
+    wrap.innerHTML = `<label style="font-size:11px;font-weight:700;color:#9a6a6a;text-transform:uppercase;letter-spacing:0.6px;display:block;margin-bottom:6px">${label}</label>`;
+    const inp = document.createElement('input');
+    inp.className = 'input'; inp.type = type; inp.placeholder = ph;
+    inp.oninput = e => vals[id] = e.target.value;
+    wrap.appendChild(inp); section.appendChild(wrap);
+  });
+
+  const saveBtn = document.createElement('button');
+  saveBtn.className = 'btn-primary btn-full'; saveBtn.textContent = 'Save Client';
+  saveBtn.style.marginTop = '8px';
+  saveBtn.onclick = async () => {
+    if (!vals.name || !vals.name.trim()) { showToast('Name is required'); return; }
+    const initials = vals.name.trim().split(' ').map(w => w[0]).join('').toUpperCase().slice(0,2);
+    const { data, error } = await db.from('clients').insert([{ name: vals.name.trim(), phone: vals.phone||'', email: vals.email||'', visits: 0, last_visit: '—', avatar: initials }]).select().single();
+    if (error) { showToast('Error saving client'); return; }
+    showToast('Client added ✓');
+    state.selectedClient = data;
+    await loadClientDetail();
+  };
+  section.appendChild(saveBtn);
+  view.appendChild(section);
+}
+
+function renderClientDetail(view) {
+  const c = state.selectedClient;
+  const section = document.createElement('div');
+  section.className = 'section';
+
+  // Back
+  const back = document.createElement('button');
+  back.className = 'btn-back'; back.textContent = '← All Clients';
+  back.onclick = () => showClients();
+  section.appendChild(back);
+
+  // Client card
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.style.cssText = 'display:flex;align-items:center;gap:14px;margin-bottom:20px';
+  card.innerHTML = `
+    <div class="avatar avatar-lg">${c.avatar || '??'}</div>
+    <div style="flex:1">
+      <div style="font-size:18px;font-weight:700">${c.name}</div>
+      <div style="font-size:13px;color:#9a6a6a">${c.phone || ''}</div>
+      <div style="font-size:13px;color:#9a6a6a">${c.email || ''}</div>
+    </div>
+    <div class="visit-count">
+      <div class="visit-num">${c.visits || 0}</div>
+      <div class="visit-lbl">visits</div>
+    </div>
+  `;
+  section.appendChild(card);
+
+  // Forms
+  const formsLabel = document.createElement('div');
+  formsLabel.className = 'section-label'; formsLabel.textContent = 'Start a Form';
+  section.appendChild(formsLabel);
+
+  const grid = document.createElement('div');
+  grid.className = 'service-grid';
+  Object.entries(SERVICES).forEach(([key, svc]) => {
+    const btn = document.createElement('button');
+    btn.className = 'service-card';
+    const saved = state.savedForms[key];
+    btn.innerHTML = `<div class="service-emoji">${svc.emoji}</div><div class="service-name">${svc.label}</div>${saved ? '<div class="tag" style="margin-top:6px;font-size:10px">Saved ✓</div>' : ''}`;
+    btn.onclick = () => {
+      state.activeService = key;
+      state.formData = saved ? { ...(saved.answers || {}) } : {};
+      state.detectedConcern = saved ? saved.concern : null;
+      state.view = 'form';
+      renderView();
+    };
+    grid.appendChild(btn);
+  });
+  section.appendChild(grid);
+
+  // Notes button
+  const notesBtn = document.createElement('button');
+  notesBtn.className = 'btn-primary btn-full'; notesBtn.textContent = '+ Add Visit Notes';
+  notesBtn.style.marginBottom = '20px';
+  notesBtn.onclick = () => {
+    state.noteData = { treatment: '', products: '', observations: '', followup: '' };
+    state.view = 'notes'; renderView();
+  };
+  section.appendChild(notesBtn);
+
+  // Visit notes history
+  if (state.savedNotes.length > 0) {
+    const div = document.createElement('div');
+    div.innerHTML = '<div class="divider"></div><div class="section-label">Visit Notes</div>';
+    section.appendChild(div);
+    state.savedNotes.forEach(n => {
+      const nc = document.createElement('div');
+      nc.className = 'card';
+      nc.innerHTML = `
+        <div style="font-size:13px;font-weight:700;margin-bottom:8px">${n.note_date || ''}</div>
+        ${n.treatment ? `<div style="font-size:13px;margin-bottom:6px"><span style="color:#9a6a6a;font-weight:600">Treatment: </span>${n.treatment}</div>` : ''}
+        ${n.observations ? `<div style="font-size:13px;margin-bottom:6px"><span style="color:#9a6a6a;font-weight:600">Skin: </span>${n.observations}</div>` : ''}
+        ${n.products ? `<div style="font-size:13px;margin-bottom:6px"><span style="color:#9a6a6a;font-weight:600">Products: </span>${n.products}</div>` : ''}
+        ${n.followup ? `<div style="font-size:13px"><span style="color:#9a6a6a;font-weight:600">Follow-up: </span>${n.followup}</div>` : ''}
+      `;
+      section.appendChild(nc);
+    });
+  }
+
+  // Consent forms section
+  const consentDiv = document.createElement('div');
+  consentDiv.innerHTML = '<div class="divider"></div><div class="section-label">Consent Forms</div>';
+  section.appendChild(consentDiv);
+
+  const consentGrid = document.createElement('div');
+  consentGrid.className = 'service-grid';
+  Object.entries(CONSENT_FORMS).forEach(([key, cf]) => {
+    const btn = document.createElement('button');
+    btn.className = 'service-card';
+    const count = state.savedConsents.filter(c => c.service === key).length;
+    btn.innerHTML = `<div class="service-emoji">${cf.emoji}</div><div class="service-name">${cf.label}</div>${count > 0 ? `<div class="tag" style="margin-top:6px;font-size:10px">${count} signed</div>` : ''}`;
+    btn.onclick = () => { state.activeConsentService = key; state.view = 'consent'; renderView(); };
+    consentGrid.appendChild(btn);
+  });
+  section.appendChild(consentGrid);
+
+  // Consent history
+  if (state.savedConsents.length > 0) {
+    const chDiv = document.createElement('div');
+    chDiv.innerHTML = '<div class="section-label" style="margin-top:4px">Signed Consents</div>';
+    section.appendChild(chDiv);
+    state.savedConsents.forEach(con => {
+      const cf = CONSENT_FORMS[con.service];
+      const svcLabel = cf ? `${cf.emoji} ${cf.label}` : con.service;
+      const item = document.createElement('div');
+      item.className = 'card consent-history-item' ;
+      item.style.borderLeft = '3px solid #f2e0d8';
+      item.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <div style="font-weight:700;font-size:14px">${svcLabel}</div>
+          <div style="font-size:11px;color:#9a6a6a">${con.signed_at || ''}</div>
+        </div>
+        ${con.signature ? `<img class="consent-history-sig" src="${con.signature}" alt="Signature" style="max-width:100%;height:60px;object-fit:contain;border:1px solid #e8cfc7;border-radius:8px;background:#fff9f7;display:block">` : '<div style="font-size:12px;color:#9a6a6a">No signature captured</div>'}
+      `;
+      section.appendChild(item);
+    });
+  }
+
+  // Saved forms
+  const formKeys = Object.keys(state.savedForms);
+  if (formKeys.length > 0) {
+    const div = document.createElement('div');
+    div.innerHTML = '<div class="divider"></div><div class="section-label">Saved Forms</div>';
+    section.appendChild(div);
+    formKeys.forEach(key => {
+      const f = state.savedForms[key];
+      const fc = document.createElement('div');
+      fc.className = 'card';
+      fc.style.cssText = 'display:flex;justify-content:space-between;align-items:center';
+      fc.innerHTML = `<div><div style="font-weight:700;font-size:14px">${SERVICES[key].emoji} ${SERVICES[key].label}</div><div style="font-size:12px;color:#9a6a6a;margin-top:4px">Saved ${f.saved_date || ''}</div></div>`;
+      const editBtn = document.createElement('button');
+      editBtn.className = 'btn-ghost'; editBtn.textContent = 'View / Edit';
+      editBtn.onclick = () => {
+        state.activeService = key;
+        state.formData = { ...(f.answers || {}) };
+        state.detectedConcern = f.concern || null;
+        state.view = 'form'; renderView();
+      };
+      fc.appendChild(editBtn);
+      section.appendChild(fc);
+    });
+  }
+
+  view.appendChild(section);
+}
+
+function renderForm(view) {
+  const svc = SERVICES[state.activeService];
+  const section = document.createElement('div');
+  section.className = 'section';
+
+  const back = document.createElement('button');
+  back.className = 'btn-back';
+  back.textContent = `← ${state.selectedClient.name}`;
+  back.onclick = () => { state.view = 'client'; renderView(); };
+  section.appendChild(back);
+
+  const title = document.createElement('div');
+  title.innerHTML = `<div style="font-size:18px;font-weight:700;margin-bottom:2px">${svc.emoji} ${svc.label}</div><div style="font-size:13px;color:#9a6a6a;margin-bottom:22px">Intake & Consultation</div>`;
+  section.appendChild(title);
+
+  svc.base.forEach(f => section.appendChild(renderField(f)));
+
+  const conditionals = svc.conditional && state.detectedConcern ? (svc.conditional[state.detectedConcern] || []) : [];
+  if (conditionals.length > 0) {
+    const box = document.createElement('div');
+    box.className = 'conditional-box';
+    const lbl = document.createElement('div');
+    lbl.className = 'conditional-label';
+    lbl.textContent = `🎯 ${state.detectedConcern} — deeper questions`;
+    box.appendChild(lbl);
+    conditionals.forEach(f => box.appendChild(renderField(f)));
+    section.appendChild(box);
+  }
+
+  const saveBtn = document.createElement('button');
+  saveBtn.className = 'btn-primary btn-full'; saveBtn.textContent = 'Save Form';
+  saveBtn.style.marginTop = '8px';
+  saveBtn.onclick = async () => {
+    const today = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    const existing = state.savedForms[state.activeService];
+    let result;
+    if (existing) {
+      result = await db.from('forms').update({ answers: state.formData, concern: state.detectedConcern, saved_date: today }).eq('id', existing.id);
+    } else {
+      result = await db.from('forms').insert([{ client_id: state.selectedClient.id, service: state.activeService, answers: state.formData, concern: state.detectedConcern, saved_date: today }]);
+    }
+    if (result.error) { showToast('Error saving form'); return; }
+    showToast('Form saved ✓');
+    await loadClientDetail();
+  };
+  section.appendChild(saveBtn);
+  view.appendChild(section);
+}
+
+function renderNotes(view) {
+  if (!state.noteData) state.noteData = { treatment: '', products: '', observations: '', followup: '' };
+  const section = document.createElement('div');
+  section.className = 'section';
+
+  const back = document.createElement('button');
+  back.className = 'btn-back';
+  back.textContent = `← ${state.selectedClient.name}`;
+  back.onclick = () => { state.view = 'client'; renderView(); };
+  section.appendChild(back);
+
+  const today = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  const title = document.createElement('div');
+  title.innerHTML = `<div style="font-size:18px;font-weight:700;margin-bottom:2px">Visit Notes</div><div style="font-size:13px;color:#9a6a6a;margin-bottom:22px">${today}</div>`;
+  section.appendChild(title);
+
+  const noteFields = [
+    { key: 'treatment', label: 'What was done', placeholder: 'Products used, techniques, machine settings…' },
+    { key: 'observations', label: 'Skin observations', placeholder: 'Texture, congestion, sensitivity, improvements noticed…' },
+    { key: 'products', label: 'Products recommended', placeholder: 'SPF, cleanser, serum — brand and name if possible…' },
+    { key: 'followup', label: 'Follow-up / Next steps', placeholder: 'Book in 4 weeks, introduce retinol, patch test for peel…' },
+  ];
+  noteFields.forEach(({ key, label, placeholder }) => {
+    const wrap = document.createElement('div');
+    wrap.style.marginBottom = '18px';
+    wrap.innerHTML = `<label style="font-size:11px;font-weight:700;color:#9a6a6a;text-transform:uppercase;letter-spacing:0.6px;display:block;margin-bottom:6px">${label}</label>`;
+    const ta = document.createElement('textarea');
+    ta.className = 'input'; ta.placeholder = placeholder;
+    ta.value = state.noteData[key] || '';
+    ta.oninput = e => state.noteData[key] = e.target.value;
+    wrap.appendChild(ta); section.appendChild(wrap);
+  });
+
+  const saveBtn = document.createElement('button');
+  saveBtn.className = 'btn-primary btn-full'; saveBtn.textContent = 'Save Notes';
+  saveBtn.style.marginTop = '4px';
+  saveBtn.onclick = async () => {
+    const todayShort = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    const cid = state.selectedClient.id;
+    const newVisits = (state.selectedClient.visits || 0) + 1;
+
+    const [nr, ur] = await Promise.all([
+      db.from('visit_notes').insert([{ client_id: cid, ...state.noteData, note_date: todayShort }]),
+      db.from('clients').update({ visits: newVisits, last_visit: todayShort }).eq('id', cid)
+    ]);
+    if (nr.error || ur.error) { showToast('Error saving notes'); return; }
+    state.selectedClient.visits = newVisits;
+    state.selectedClient.last_visit = todayShort;
+    state.clients = state.clients.map(c => c.id === cid ? { ...c, visits: newVisits, last_visit: todayShort } : c);
+    showToast('Notes saved ✓');
+    await loadClientDetail();
+  };
+  section.appendChild(saveBtn);
+  view.appendChild(section);
+}
+
+// ─── CONSENT DEFINITIONS ─────────────────────────────────────────
+const CONSENT_FORMS = {
+  facial: {
+    label: "Facial Consent",
+    emoji: "✨",
+    intro: "Please read and acknowledge each item before signing.",
+    items: [
+      "I understand that facial treatments may cause temporary redness, sensitivity, or mild irritation, which typically subsides within a few hours.",
+      "I have disclosed all relevant medical conditions, medications (including topical prescriptions such as retinoids), allergies, and recent procedures.",
+      "I understand that results vary by individual and that multiple sessions may be needed to achieve desired outcomes.",
+      "I am not currently experiencing an active cold sore, open wound, or severe skin infection in the treatment area.",
+      "I understand that I should notify my esthetician if I am pregnant or nursing, as some products and treatments may not be suitable.",
+      "I agree to follow all post-care instructions provided by my esthetician, including SPF use and avoiding active ingredients for the recommended period.",
+      "I understand that chemical exfoliants, enzymes, or extractions may be used during my facial as deemed appropriate by my esthetician.",
+      "I release JuGlow and its esthetician from liability for any adverse reactions resulting from undisclosed conditions or failure to follow aftercare instructions.",
+      "I consent to JuGlow taking before-and-after photos of my treatment area for my client record, and, if separately agreed, for marketing or social media use.",
+    ],
+  },
+  peel: {
+    label: "Chemical Peel Consent",
+    emoji: "🧪",
+    intro: "Chemical peels involve the use of active acids. Please read and acknowledge each item carefully before signing.",
+    items: [
+      "I understand that chemical peels use acids (such as lactic, glycolic, salicylic, or mandelic acid) to exfoliate and resurface the skin.",
+      "I understand that side effects may include redness, peeling, flaking, sensitivity, and in rare cases, hyperpigmentation — especially in deeper skin tones (Fitzpatrick IV–VI).",
+      "I have disclosed my full Fitzpatrick type and understand that my esthetician will select an appropriate peel strength accordingly.",
+      "I confirm that I have NOT used retinoids, tretinoin, or other prescription topicals on the treatment area within the last 5–7 days, unless otherwise discussed.",
+      "I confirm that I am NOT currently on Accutane, and have been off Accutane for at least 6 months.",
+      "I understand that I must avoid sun exposure, tanning beds, and waxing/threading for at least 7–14 days following my peel.",
+      "I commit to wearing SPF 30 or higher every day following my peel and understand that failure to do so may lead to hyperpigmentation.",
+      "I have disclosed any history of cold sores (HSV), as peels can trigger outbreaks in susceptible individuals.",
+      "I understand that peeling or flaking may occur in the days following treatment and that I must not pick, peel, or force shedding of the skin.",
+      "I release JuGlow and its esthetician from liability for reactions resulting from undisclosed medications, conditions, or failure to follow aftercare instructions.",
+      "I consent to JuGlow taking before-and-after photos of my treatment area for my client record, and, if separately agreed, for marketing or social media use.",
+    ],
+  },
+  waxing: {
+    label: "Waxing Consent",
+    emoji: "🌿",
+    intro: "Please read and acknowledge each item before signing.",
+    items: [
+      "I understand that waxing involves the removal of hair from the root and may cause temporary redness, irritation, or sensitivity in the treated area.",
+      "I confirm that I am NOT currently using retinoids, tretinoin, or other prescription topicals on the area to be waxed, as this significantly thins the skin and may cause lifting or tearing.",
+      "I confirm that I am NOT on Accutane and have not been on Accutane within the past 6 months.",
+      "I understand that I should avoid waxing on sunburned, irritated, or broken skin, and I have disclosed any active skin conditions in the area.",
+      "I have disclosed any known allergies, particularly to rosin (colophony) found in many waxes, fragrances, or pine resin.",
+      "I understand that waxing may cause ingrown hairs and agree to follow recommended aftercare to minimize this risk.",
+      "I understand that results vary and that coarse or dense hair may require more than one session to achieve desired smoothness.",
+      "I release JuGlow and its esthetician from liability for adverse reactions resulting from undisclosed conditions, medications, or failure to follow aftercare instructions.",
+      "I consent to JuGlow taking before-and-after photos of my treatment area for my client record, and, if separately agreed, for marketing or social media use.",
+    ],
+  },
+  lash: {
+    label: "Lash Consent",
+    emoji: "👁️",
+    intro: "Please read and acknowledge each item before signing.",
+    items: [
+      "I understand that lash lift and/or tint treatments use chemical solutions that reshape and/or dye the natural lash, and may cause temporary redness, watering, or sensitivity around the eye area.",
+      "I have disclosed any known allergies to adhesives, latex, dyes, or lash solutions.",
+      "I confirm that I am not currently experiencing an eye infection, conjunctivitis, or irritation in the treatment area.",
+      "I understand that results vary based on my natural lash length, texture, and condition.",
+      "I understand that I should avoid getting the treated area wet, using oil-based products near my lashes, or wearing mascara for the timeframe recommended by my esthetician.",
+      "I have disclosed whether I wear contact lenses or have any eye sensitivities.",
+      "I understand that I should notify my esthetician if I am pregnant or nursing.",
+      "I release JuGlow and its esthetician from liability for adverse reactions resulting from undisclosed conditions or failure to follow aftercare instructions.",
+      "I consent to JuGlow taking before-and-after photos of my treatment area for my client record, and, if separately agreed, for marketing or social media use.",
+    ],
+  },
+  lamination: {
+    label: "Lamination Consent",
+    emoji: "🪄",
+    intro: "Please read and acknowledge each item before signing.",
+    items: [
+      "I understand that eyebrow lamination uses a chemical solution (thioglycolate or cysteamine-based) to reshape and set the brow hairs, and may cause temporary redness or sensitivity.",
+      "I have disclosed any known allergies to thioglycolate, cysteamine, or related chemical solutions.",
+      "I confirm that I have not tinted, tweezed, waxed, or microbladed my brows within the last 2 weeks, unless otherwise discussed.",
+      "I confirm that I am not currently using retinoids, acids, or medicated creams on the brow area.",
+      "I understand that I should keep my brows dry and avoid makeup, cleanser, or oils on the area for 24 hours following treatment.",
+      "I understand that results typically last 4–6 weeks and will soften naturally as new hair grows in.",
+      "I understand that I should notify my esthetician if I am pregnant or nursing.",
+      "I release JuGlow and its esthetician from liability for adverse reactions resulting from undisclosed conditions or failure to follow aftercare instructions.",
+      "I consent to JuGlow taking before-and-after photos of my treatment area for my client record, and, if separately agreed, for marketing or social media use.",
+    ],
+  },
+};
+
+// ─── LISTS: CONTRAINDICATIONS & AFTERCARE ─────────────────────────
+const LISTS_DATA = {
+  facial: {
+    contra: [
+      "Active acne cysts, open lesions, or infection in treatment area",
+      "Sunburn or recently irritated skin",
+      "Isotretinoin (Accutane) use within 6–12 months",
+      "Recent Botox or filler in treatment area, within 2 weeks",
+      "Known allergy to product ingredients",
+    ],
+    after: [
+      "Avoid makeup for 12–24 hours",
+      "Skip heavy sweating — gym, sauna, hot yoga — for 24 hours",
+      "Apply SPF 30+ daily",
+      "Avoid retinol or AHA/BHA for 48 hours",
+      "Stay hydrated, gentle cleanser only",
+    ],
+  },
+  peel: {
+    contra: [
+      "Active cold sores or herpes simplex outbreak",
+      "Pregnancy or breastfeeding, acid-dependent",
+      "Isotretinoin use within 6–12 months",
+      "Recent waxing or threading in area, within 5–7 days",
+      "Sunburned or compromised skin barrier",
+    ],
+    after: [
+      "Broad-spectrum SPF 30+, reapply every 2 hours if outdoors",
+      "No retinoids, AHA/BHA, or vitamin C for 5–7 days",
+      "Do not pick or peel flaking skin",
+      "No pools, hot tubs, or heavy sweating",
+      "Gentle cleanser and barrier moisturizer only",
+    ],
+  },
+  waxing: {
+    contra: [
+      "Accutane use within 6 months",
+      "Sunburned skin or active sunburn",
+      "Recent chemical peel or retinoid use in area, within 5–7 days",
+      "Varicose veins directly in treatment area",
+      "Open cuts, warts, or irritation in area",
+    ],
+    after: [
+      "Avoid heat — sauna, hot shower, sun — for 24–48 hours",
+      "No makeup or deodorant on treated area for 24 hours",
+      "Avoid tight clothing over treated area",
+      "Exfoliate gently after 48 hours to prevent ingrowns",
+      "Apply soothing, fragrance-free aloe or moisturizer",
+    ],
+  },
+  lash: {
+    contra: [
+      "Active eye infection or conjunctivitis",
+      "Known allergy to lash adhesive or latex",
+      "Recent eye surgery, within 6 weeks",
+      "Medication causing lash shedding",
+      "Extremely sparse or weak natural lashes",
+    ],
+    after: [
+      "Keep lashes dry for 24–48 hours after application",
+      "Avoid oil-based makeup removers or skincare near lash line",
+      "No mascara on lifted/tinted lashes",
+      "Brush lashes daily with a clean spoolie",
+      "Avoid rubbing or sleeping face-down on lashes",
+    ],
+  },
+  lamination: {
+    contra: [
+      "Active dermatitis, eczema, or open wounds on brow area",
+      "Known allergy to thioglycolate or cysteamine formulas",
+      "Recent brow tint or tattoo, within 2 weeks",
+      "Pregnancy — patch test and client discretion advised",
+      "Very short or over-tweezed brows",
+    ],
+    after: [
+      "Keep brows dry for 24 hours",
+      "Avoid makeup, cleanser, or oils on brows for 24 hours",
+      "Brush brows into shape daily with a spoolie",
+      "Avoid picking or over-brushing while setting",
+      "Apply brow serum after 48 hours if recommended",
+    ],
+  },
+};
+
+let listsActiveService = 'facial';
+let listsActiveView = 'contra';
+
+function renderLists(view) {
+  const section = document.createElement('div');
+  section.className = 'section';
+
+  const title = document.createElement('div');
+  title.innerHTML = `<div style="font-size:20px;font-weight:700;margin-bottom:2px">Lists</div><div style="font-size:13px;color:#9a6a6a;margin-bottom:16px">Contraindications & aftercare, by service</div>`;
+  section.appendChild(title);
+
+  const pillGroup = document.createElement('div');
+  pillGroup.className = 'pill-group';
+  pillGroup.style.marginBottom = '18px';
+  Object.entries(SERVICES).forEach(([key, svc]) => {
+    const btn = document.createElement('button');
+    btn.className = 'btn-pill' + (listsActiveService === key ? ' active' : '');
+    btn.textContent = `${svc.emoji} ${svc.label}`;
+    btn.onclick = () => { listsActiveService = key; renderView(); };
+    pillGroup.appendChild(btn);
+  });
+  section.appendChild(pillGroup);
+
+  const toggleRow = document.createElement('div');
+  toggleRow.style.cssText = 'display:flex;gap:8px;margin-bottom:14px';
+  [['contra','Contraindications'],['after','Aftercare']].forEach(([key, label]) => {
+    const btn = document.createElement('button');
+    btn.className = 'btn-pill';
+    btn.style.flex = '1';
+    btn.style.textAlign = 'center';
+    if (listsActiveView === key) btn.classList.add('active');
+    btn.textContent = label;
+    btn.onclick = () => { listsActiveView = key; renderView(); };
+    toggleRow.appendChild(btn);
+  });
+  section.appendChild(toggleRow);
+
+  const card = document.createElement('div');
+  card.className = 'card';
+  const items = LISTS_DATA[listsActiveService][listsActiveView];
+  items.forEach(text => {
+    const row = document.createElement('div');
+    row.className = 'list-item';
+    row.innerHTML = `<div class="list-dot"></div><span>${text}</span>`;
+    card.appendChild(row);
+  });
+  section.appendChild(card);
+
+  view.appendChild(section);
+}
+
+// ─── RENDER CONSENT ──────────────────────────────────────────────
+function renderConsent(view) {
+  const key = state.activeConsentService;
+  const form = CONSENT_FORMS[key];
+  const section = document.createElement('div');
+  section.className = 'section';
+
+  const back = document.createElement('button');
+  back.className = 'btn-back';
+  back.textContent = `← ${state.selectedClient.name}`;
+  back.onclick = () => { state.view = 'client'; renderView(); };
+  section.appendChild(back);
+
+  const title = document.createElement('div');
+  title.innerHTML = `<div style="font-size:18px;font-weight:700;margin-bottom:4px">${form.emoji} ${form.label}</div><div style="font-size:13px;color:#9a6a6a;margin-bottom:8px">${state.selectedClient.name}</div><div style="font-size:13px;color:#7a4a4a;margin-bottom:20px">${form.intro}</div>`;
+  section.appendChild(title);
+
+  // Consent items as a numbered read-through list
+  const itemsList = document.createElement('ol');
+  itemsList.style.cssText = 'padding-left:18px;margin-bottom:20px';
+  form.items.forEach(item => {
+    const li = document.createElement('li');
+    li.style.cssText = 'font-size:13px;color:#3d2020;line-height:1.6;margin-bottom:10px';
+    li.textContent = item;
+    itemsList.appendChild(li);
+  });
+  section.appendChild(itemsList);
+
+  // Single acknowledgment checkbox
+  let agreed = false;
+  const agreeLabel = document.createElement('label');
+  agreeLabel.className = 'consent-checkbox-item';
+  agreeLabel.style.cssText = 'background:#fbece6;border:1.5px solid #f2e0d8;border-radius:12px;padding:14px;margin-bottom:20px';
+  const agreeCb = document.createElement('input');
+  agreeCb.type = 'checkbox';
+  agreeCb.onchange = e => { agreed = e.target.checked; };
+  const agreeSpan = document.createElement('span');
+  agreeSpan.style.fontWeight = '600';
+  agreeSpan.textContent = 'I have read and understand all of the above, and I consent to the treatment.';
+  agreeLabel.appendChild(agreeCb);
+  agreeLabel.appendChild(agreeSpan);
+  section.appendChild(agreeLabel);
+
+  // Signature
+  const sigLabel = document.createElement('div');
+  sigLabel.innerHTML = '<label style="font-size:11px;font-weight:700;color:#9a6a6a;text-transform:uppercase;letter-spacing:0.6px;display:block;margin-bottom:6px">Client Signature</label>';
+  section.appendChild(sigLabel);
+
+  const canvasWrap = document.createElement('div');
+  canvasWrap.className = 'signature-canvas-wrap';
+  const canvas = document.createElement('canvas');
+  canvas.className = 'signature-canvas';
+  canvas.height = 160;
+  canvasWrap.appendChild(canvas);
+
+  const clearBtn = document.createElement('button');
+  clearBtn.className = 'signature-clear-btn';
+  clearBtn.textContent = 'Clear';
+  canvasWrap.appendChild(clearBtn);
+  section.appendChild(canvasWrap);
+
+  // Set canvas width after appending
+  requestAnimationFrame(() => {
+    canvas.width = canvas.offsetWidth;
+    const ctx = canvas.getContext('2d');
+    ctx.strokeStyle = '#3d2020';
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    let drawing = false;
+    let lastX = 0, lastY = 0;
+
+    function getPos(e) {
+      const rect = canvas.getBoundingClientRect();
+      const src = e.touches ? e.touches[0] : e;
+      return [src.clientX - rect.left, src.clientY - rect.top];
+    }
+    function startDraw(e) { e.preventDefault(); drawing = true; [lastX, lastY] = getPos(e); }
+    function draw(e) {
+      if (!drawing) return; e.preventDefault();
+      const [x, y] = getPos(e);
+      ctx.beginPath(); ctx.moveTo(lastX, lastY); ctx.lineTo(x, y); ctx.stroke();
+      [lastX, lastY] = [x, y];
+    }
+    function endDraw() { drawing = false; }
+
+    canvas.addEventListener('mousedown', startDraw);
+    canvas.addEventListener('mousemove', draw);
+    canvas.addEventListener('mouseup', endDraw);
+    canvas.addEventListener('mouseleave', endDraw);
+    canvas.addEventListener('touchstart', startDraw, { passive: false });
+    canvas.addEventListener('touchmove', draw, { passive: false });
+    canvas.addEventListener('touchend', endDraw);
+
+    clearBtn.onclick = () => ctx.clearRect(0, 0, canvas.width, canvas.height);
+  });
+
+  // Date/time display
+  const dateWrap = document.createElement('div');
+  dateWrap.style.cssText = 'margin-top:14px;font-size:13px;color:#9a6a6a';
+  const now = new Date();
+  dateWrap.textContent = `Date: ${now.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}`;
+  section.appendChild(dateWrap);
+
+  // Save button
+  const saveBtn = document.createElement('button');
+  saveBtn.className = 'btn-primary btn-full';
+  saveBtn.textContent = 'Save Signed Consent';
+  saveBtn.style.marginTop = '20px';
+  saveBtn.onclick = async () => {
+    if (!agreed) { showToast('Please check the acknowledgment box'); return; }
+    const isEmpty = canvas.toDataURL() === document.createElement('canvas').toDataURL();
+    if (isEmpty) { showToast('Please add a signature'); return; }
+    const sigData = canvas.toDataURL('image/png');
+    const signedAt = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    const { error } = await db.from('consents').insert([{
+      client_id: state.selectedClient.id,
+      service: key,
+      checkboxes: { agreed: true },
+      signature: sigData,
+      signed_at: signedAt,
+    }]);
+    if (error) { showToast('Error saving consent'); return; }
+    showToast('Consent saved ✓');
+    await loadClientDetail();
+  };
+  section.appendChild(saveBtn);
+  view.appendChild(section);
+}
+
+// ─── EXPENSES ────────────────────────────────────────────────────
+async function showExpenses() {
+  state.view = 'expenses';
+  updateNav();
+  render(`<div class="loading"><div class="spinner"></div> Loading expenses…</div>`);
+  let from, to;
+  if (state.expenseViewMode === 'year') {
+    from = `${state.expenseYear}-01-01`;
+    to = `${state.expenseYear}-12-31`;
+  } else {
+    const [yr, mo] = state.expenseMonth.split('-');
+    const lastDay = new Date(parseInt(yr), parseInt(mo), 0).getDate();
+    from = `${state.expenseMonth}-01`;
+    to = `${state.expenseMonth}-${String(lastDay).padStart(2,'0')}`;
+  }
+  const { data, error } = await db.from('expenses').select('*').gte('date', from).lte('date', to).order('date', { ascending: false });
+  if (error) { showToast('Error loading: ' + error.message); state.expenses = []; }
+  else state.expenses = data || [];
+  renderView();
+}
+
+function renderExpenses(view) {
+  const section = document.createElement('div');
+  section.className = 'section';
+
+  // Header row
+  const hdr = document.createElement('div');
+  hdr.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-bottom:14px';
+  const titleDiv = document.createElement('div');
+  titleDiv.innerHTML = `<div style="font-size:20px;font-weight:700">Expenses</div>`;
+  const btnWrap = document.createElement('div');
+  btnWrap.style.cssText = 'display:flex;gap:8px';
+  const importBtn = document.createElement('button');
+  importBtn.className = 'btn-ghost'; importBtn.textContent = 'Import CSV';
+  importBtn.onclick = () => { state.view = 'importCSV'; state.importRows = []; renderView(); };
+  const addBtn = document.createElement('button');
+  addBtn.className = 'btn-primary'; addBtn.textContent = '+ Add';
+  addBtn.onclick = () => {
+    state.expenseForm = { date: new Date().toISOString().slice(0, 10) };
+    state.view = 'addExpense'; renderView();
+  };
+  btnWrap.appendChild(importBtn); btnWrap.appendChild(addBtn);
+  hdr.appendChild(titleDiv); hdr.appendChild(btnWrap);
+  section.appendChild(hdr);
+
+  // Month / Year toggle
+  const toggleRow = document.createElement('div');
+  toggleRow.style.cssText = 'display:flex;gap:6px;margin-bottom:12px';
+  const monthToggle = document.createElement('button');
+  monthToggle.className = 'btn-pill' + (state.expenseViewMode === 'month' ? ' active' : '');
+  monthToggle.textContent = 'By Month';
+  monthToggle.onclick = () => { state.expenseViewMode = 'month'; showExpenses(); };
+  const yearToggle = document.createElement('button');
+  yearToggle.className = 'btn-pill' + (state.expenseViewMode === 'year' ? ' active' : '');
+  yearToggle.textContent = 'Full Year';
+  yearToggle.onclick = () => { state.expenseViewMode = 'year'; showExpenses(); };
+  toggleRow.appendChild(monthToggle);
+  toggleRow.appendChild(yearToggle);
+  section.appendChild(toggleRow);
+
+  // Picker + total
+  const controlRow = document.createElement('div');
+  controlRow.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:10px';
+
+  if (state.expenseViewMode === 'month') {
+    const monthInp = document.createElement('input');
+    monthInp.type = 'month'; monthInp.className = 'input';
+    monthInp.value = state.expenseMonth; monthInp.style.cssText = 'max-width:160px';
+    monthInp.onchange = e => { state.expenseMonth = e.target.value; showExpenses(); };
+    controlRow.appendChild(monthInp);
+  } else {
+    const yearSel = document.createElement('select');
+    yearSel.className = 'input'; yearSel.style.cssText = 'max-width:120px';
+    const currentYear = new Date().getFullYear();
+    for (let y = currentYear; y >= currentYear - 4; y--) {
+      const opt = document.createElement('option');
+      opt.value = y; opt.textContent = y;
+      if (String(y) === state.expenseYear) opt.selected = true;
+      yearSel.appendChild(opt);
+    }
+    yearSel.onchange = e => { state.expenseYear = e.target.value; showExpenses(); };
+    controlRow.appendChild(yearSel);
+  }
+
+  const total = state.expenses.reduce((s, e) => s + parseFloat(e.amount || 0), 0);
+  const totalPill = document.createElement('div');
+  totalPill.style.cssText = 'background:#fbece6;border:1px solid #f2e0d8;border-radius:20px;padding:6px 14px;white-space:nowrap';
+  totalPill.innerHTML = `<span style="font-size:12px;color:#9a6a6a;font-weight:600">${state.expenseViewMode === 'year' ? state.expenseYear : formatMonth(state.expenseMonth)} </span><span style="font-size:15px;font-weight:700;color:#7a4a4a">$${total.toFixed(2)}</span>`;
+  controlRow.appendChild(totalPill);
+  section.appendChild(controlRow);
+
+  if (state.expenses.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'empty'; empty.textContent = 'No expenses this month';
+    section.appendChild(empty);
+  } else {
+    // Scrollable table wrapper
+    const tableWrap = document.createElement('div');
+    tableWrap.style.cssText = 'overflow-x:auto;border-radius:14px;border:1px solid #e8cfc7;background:#fff;box-shadow:0 2px 8px rgba(122,74,74,0.06)';
+
+    const table = document.createElement('table');
+    table.style.cssText = 'width:100%;border-collapse:collapse;font-size:13px';
+
+    // Header
+    const thead = document.createElement('thead');
+    thead.innerHTML = `<tr style="background:#f9f0ec;border-bottom:2px solid #e8cfc7">
+      <th style="padding:10px 12px;text-align:left;font-size:11px;font-weight:700;color:#9a6a6a;text-transform:uppercase;letter-spacing:0.5px;white-space:nowrap">Date</th>
+      <th style="padding:10px 12px;text-align:left;font-size:11px;font-weight:700;color:#9a6a6a;text-transform:uppercase;letter-spacing:0.5px">Vendor</th>
+      <th style="padding:10px 12px;text-align:left;font-size:11px;font-weight:700;color:#9a6a6a;text-transform:uppercase;letter-spacing:0.5px">Description</th>
+      <th style="padding:10px 12px;text-align:left;font-size:11px;font-weight:700;color:#9a6a6a;text-transform:uppercase;letter-spacing:0.5px">Category</th>
+      <th style="padding:10px 12px;text-align:right;font-size:11px;font-weight:700;color:#9a6a6a;text-transform:uppercase;letter-spacing:0.5px">Amount</th>
+      <th style="padding:10px 12px;text-align:left;font-size:11px;font-weight:700;color:#9a6a6a;text-transform:uppercase;letter-spacing:0.5px;white-space:nowrap">Payment</th>
+      <th style="padding:10px 12px;text-align:left;font-size:11px;font-weight:700;color:#9a6a6a;text-transform:uppercase;letter-spacing:0.5px">Notes</th>
+      <th style="padding:10px 12px;width:60px"></th>
+    </tr>`;
+    table.appendChild(thead);
+
+    const tbody = document.createElement('tbody');
+    let lastMonth = null;
+    let monthTotal = 0;
+    const allRows = [...state.expenses];
+
+    // In year view, inject month subtotal rows
+    function flushMonthTotal(label, subtotal) {
+      if (state.expenseViewMode !== 'year' || !label) return;
+      const tr = document.createElement('tr');
+      tr.style.cssText = 'background:#f9f0ec;border-top:2px solid #e8cfc7;border-bottom:2px solid #e8cfc7';
+      tr.innerHTML = `<td colspan="4" style="padding:8px 12px;font-size:12px;font-weight:700;color:#7a4a4a;text-transform:uppercase;letter-spacing:0.5px">${label}</td>
+        <td style="padding:8px 12px;text-align:right;font-weight:700;color:#7a4a4a">$${subtotal.toFixed(2)}</td>
+        <td colspan="3"></td>`;
+      tbody.appendChild(tr);
+    }
+
+    allRows.forEach((exp, idx) => {
+      // Year view: inject month header when month changes
+      if (state.expenseViewMode === 'year') {
+        const expMonth = exp.date ? exp.date.slice(0, 7) : '';
+        if (expMonth !== lastMonth) {
+          if (lastMonth !== null) flushMonthTotal(formatMonth(lastMonth), monthTotal);
+          lastMonth = expMonth;
+          monthTotal = 0;
+        }
+        monthTotal += parseFloat(exp.amount || 0);
+      }
+
+      const tr = document.createElement('tr');
+      tr.style.cssText = `border-bottom:1px solid #f2e0d8;transition:background 0.1s;${idx % 2 === 1 ? 'background:#fdf9f7' : ''}`;
+      tr.onmouseenter = () => tr.style.background = '#fbece6';
+      tr.onmouseleave = () => tr.style.background = idx % 2 === 1 ? '#fdf9f7' : '';
+
+      const dateStr = exp.date ? exp.date.slice(5).replace('-', '/') + '/' + exp.date.slice(0,4).slice(2) : '';
+
+      tr.innerHTML = `
+        <td style="padding:10px 12px;white-space:nowrap;color:#9a6a6a;font-size:12px">${dateStr}</td>
+        <td style="padding:10px 12px;font-weight:700;color:#3d2020;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${exp.vendor || ''}</td>
+        <td style="padding:10px 12px;color:#3d2020;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${exp.description || ''}</td>
+        <td style="padding:10px 12px;white-space:nowrap"><span class="tag" style="font-size:10px">${exp.category || ''}</span></td>
+        <td style="padding:10px 12px;text-align:right;font-weight:700;color:#3d2020;white-space:nowrap">$${parseFloat(exp.amount||0).toFixed(2)}</td>
+        <td style="padding:10px 12px;color:#9a6a6a;font-size:12px;white-space:nowrap;max-width:130px;overflow:hidden;text-overflow:ellipsis">${exp.payment_method || ''}</td>
+        <td style="padding:10px 12px;color:#9a6a6a;font-size:12px;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${exp.notes || ''}${exp.receipt_url ? ' <a href="'+exp.receipt_url+'" target="_blank" style="color:#7a4a4a;text-decoration:none">📎</a>' : ''}</td>
+      `;
+
+      // Actions cell
+      const actionTd = document.createElement('td');
+      actionTd.style.cssText = 'padding:8px 10px;white-space:nowrap';
+
+      const editBtn = document.createElement('button');
+      editBtn.title = 'Edit';
+      editBtn.style.cssText = 'background:transparent;border:none;cursor:pointer;padding:4px 6px;border-radius:6px;font-size:14px;color:#9a6a6a';
+      editBtn.textContent = '✏️';
+      editBtn.onclick = () => { state.expenseForm = { ...exp }; state.view = 'addExpense'; renderView(); };
+
+      const delBtn = document.createElement('button');
+      delBtn.title = 'Delete';
+      delBtn.style.cssText = 'background:transparent;border:none;cursor:pointer;padding:4px 6px;border-radius:6px;font-size:14px;color:#c0392b';
+      delBtn.textContent = '🗑';
+      delBtn.onclick = () => {
+        // Replace action cell with inline confirm
+        actionTd.innerHTML = '';
+        actionTd.style.whiteSpace = 'nowrap';
+        const cancelBtn = document.createElement('button');
+        cancelBtn.textContent = 'Cancel';
+        cancelBtn.style.cssText = 'font-size:12px;padding:4px 10px;border-radius:8px;border:1.5px solid #e8cfc7;background:transparent;color:#9a6a6a;cursor:pointer;font-family:inherit;margin-right:6px';
+        cancelBtn.onclick = () => { actionTd.innerHTML = ''; actionTd.appendChild(editBtn); actionTd.appendChild(delBtn); };
+        const confirmBtn = document.createElement('button');
+        confirmBtn.textContent = 'Delete';
+        confirmBtn.style.cssText = 'font-size:12px;padding:4px 10px;border-radius:8px;border:none;background:#c0392b;color:#fff;cursor:pointer;font-family:inherit;font-weight:600';
+        confirmBtn.onclick = () => {
+          confirmBtn.disabled = true; confirmBtn.textContent = '…';
+          db.from('expenses').delete().eq('id', exp.id).then(({ error }) => {
+            if (error) { showToast('Error deleting'); cancelBtn.onclick(); return; }
+            tr.style.opacity = '0'; tr.style.transition = 'opacity 0.3s';
+            setTimeout(() => { showToast('Deleted ✓'); showExpenses(); }, 300);
+          });
+        };
+        tr.style.background = '#fde8e8';
+        actionTd.appendChild(cancelBtn);
+        actionTd.appendChild(confirmBtn);
+      };
+
+      actionTd.appendChild(editBtn);
+      actionTd.appendChild(delBtn);
+      tr.appendChild(actionTd);
+      tbody.appendChild(tr);
+    });
+
+    // Flush last month subtotal in year view
+    flushMonthTotal(lastMonth ? formatMonth(lastMonth) : '', monthTotal);
+
+    table.appendChild(tbody);
+    tableWrap.appendChild(table);
+    section.appendChild(tableWrap);
+  }
+  view.appendChild(section);
+}
+
+function renderAddExpense(view) {
+  if (!state.expenseForm) state.expenseForm = { date: new Date().toISOString().slice(0, 10) };
+  const ef = state.expenseForm;
+  const section = document.createElement('div');
+  section.className = 'section';
+
+  const back = document.createElement('button');
+  back.className = 'btn-back'; back.textContent = '← Expenses';
+  back.onclick = () => { state.view = 'expenses'; renderView(); };
+  section.appendChild(back);
+
+  const title = document.createElement('div');
+  title.innerHTML = `<div style="font-size:18px;font-weight:700;margin-bottom:20px">${ef.id ? 'Edit' : 'Add'} Expense</div>`;
+  section.appendChild(title);
+
+  // Date
+  section.appendChild(makeField('Date', () => {
+    const inp = document.createElement('input');
+    inp.type = 'date'; inp.className = 'input';
+    inp.value = ef.date || '';
+    inp.onchange = e => ef.date = e.target.value;
+    return inp;
+  }));
+
+  // Category field (built first so vendor can reference it)
+  const catWrap = document.createElement('div');
+  catWrap.className = 'field';
+  const catLbl = document.createElement('label');
+  catLbl.innerHTML = 'Category';
+  const autoTag = document.createElement('span');
+  autoTag.className = 'tag';
+  autoTag.style.cssText = 'display:none;margin-left:8px;font-size:10px';
+  catLbl.appendChild(autoTag);
+  catWrap.appendChild(catLbl);
+  const catSel = makeCategorySelect(ef);
+  catWrap.appendChild(catSel);
+
+  // Vendor
+  section.appendChild(makeField('Vendor', () => {
+    const inp = document.createElement('input');
+    inp.type = 'text'; inp.className = 'input';
+    inp.value = ef.vendor || ''; inp.placeholder = 'Business or store name';
+    inp.oninput = e => {
+      ef.vendor = e.target.value;
+      const cat = guessCategory(ef.vendor);
+      const ask = isAlwaysAsk(ef.vendor);
+      if (cat && !ask) {
+        catSel.value = cat; ef.category = cat;
+        autoTag.textContent = 'Auto-filled ✓';
+        autoTag.style.cssText = 'display:inline;margin-left:8px;font-size:10px;background:#d4edda;color:#2d6a4f';
+      } else if (ask) {
+        catSel.value = ''; ef.category = '';
+        autoTag.textContent = 'Please select category';
+        autoTag.style.cssText = 'display:inline;margin-left:8px;font-size:10px;background:#fde8e8;color:#c0392b';
+      } else {
+        autoTag.style.display = 'none';
+      }
+    };
+    return inp;
+  }));
+
+  section.appendChild(catWrap);
+
+  // Description
+  section.appendChild(makeField('Description', () => {
+    const inp = document.createElement('input');
+    inp.type = 'text'; inp.className = 'input';
+    inp.value = ef.description || ''; inp.placeholder = 'What was purchased';
+    inp.oninput = e => ef.description = e.target.value;
+    return inp;
+  }));
+
+  // Amount
+  section.appendChild(makeField('Amount ($)', () => {
+    const inp = document.createElement('input');
+    inp.type = 'number'; inp.className = 'input';
+    inp.step = '0.01'; inp.min = '0'; inp.placeholder = '0.00';
+    inp.value = ef.amount || '';
+    inp.oninput = e => { ef.amount = e.target.value; updateReceiptNote(); };
+    return inp;
+  }));
+
+  // Payment method
+  // Payment method — parse existing value if editing (e.g. "Credit Card •••• 4242")
+  const pmParts = (ef.payment_method || '').split(' •••• ');
+  const pmBase = pmParts[0] || '';
+  let pmLast4 = pmParts[1] || '';
+
+  const pmWrap = document.createElement('div');
+  pmWrap.className = 'field';
+  const pmLbl = document.createElement('label');
+  pmLbl.textContent = 'Payment Method';
+  pmWrap.appendChild(pmLbl);
+
+  const pmSel = document.createElement('select');
+  pmSel.className = 'input';
+  ['', 'Cash', 'Credit Card', 'Debit Card', 'Check', 'Zelle', 'Other'].forEach(o => {
+    const opt = document.createElement('option');
+    opt.value = o; opt.textContent = o || 'Select…';
+    if (pmBase === o) opt.selected = true;
+    pmSel.appendChild(opt);
+  });
+  pmWrap.appendChild(pmSel);
+
+  const cardWrap = document.createElement('div');
+  cardWrap.style.cssText = 'margin-top:8px;display:flex;align-items:center;gap:8px';
+  const cardPrefix = document.createElement('span');
+  cardPrefix.style.cssText = 'font-size:13px;color:#9a6a6a;white-space:nowrap';
+  cardPrefix.textContent = 'Last 4 digits:';
+  const cardInp = document.createElement('input');
+  cardInp.type = 'text'; cardInp.className = 'input';
+  cardInp.maxLength = 4; cardInp.placeholder = '1234';
+  cardInp.style.cssText = 'max-width:90px;letter-spacing:2px;font-weight:700';
+  cardInp.value = pmLast4;
+  cardWrap.appendChild(cardPrefix);
+  cardWrap.appendChild(cardInp);
+  pmWrap.appendChild(cardWrap);
+
+  function isCardMethod(v) { return v === 'Credit Card' || v === 'Debit Card'; }
+  function updatePmValue() {
+    const base = pmSel.value;
+    const last4 = cardInp.value.trim();
+    ef.payment_method = (isCardMethod(base) && last4.length > 0) ? `${base} •••• ${last4}` : base;
+  }
+  function updateCardVisibility() {
+    cardWrap.style.display = isCardMethod(pmSel.value) ? 'flex' : 'none';
+  }
+  pmSel.onchange = () => { updateCardVisibility(); updatePmValue(); };
+  cardInp.oninput = () => { pmLast4 = cardInp.value; updatePmValue(); };
+  updateCardVisibility();
+  updatePmValue();
+  section.appendChild(pmWrap);
+
+  // Receipt
+  const receiptWrap = document.createElement('div');
+  receiptWrap.className = 'field';
+  const receiptLbl = document.createElement('label');
+  receiptLbl.innerHTML = 'Receipt';
+  const reqNote = document.createElement('span');
+  reqNote.id = 'receiptReqNote';
+  reqNote.style.cssText = 'display:none;margin-left:8px;font-size:10px;background:#fde8e8;color:#c0392b;padding:2px 8px;border-radius:20px;font-weight:600';
+  reqNote.textContent = 'Required for amounts over $50';
+  receiptLbl.appendChild(reqNote);
+  receiptWrap.appendChild(receiptLbl);
+  const fileInp = document.createElement('input');
+  fileInp.type = 'file'; fileInp.accept = 'image/*,.pdf'; fileInp.className = 'input';
+  fileInp.style.padding = '8px';
+  fileInp.onchange = e => ef._receiptFile = e.target.files[0];
+  receiptWrap.appendChild(fileInp);
+  if (ef.receipt_url) {
+    const existingLink = document.createElement('div');
+    existingLink.style.cssText = 'margin-top:6px;font-size:12px;color:#7a4a4a';
+    existingLink.innerHTML = `<a href="${ef.receipt_url}" target="_blank" style="color:#7a4a4a;font-weight:600;text-decoration:none">📎 Current receipt</a> — upload a new file to replace`;
+    receiptWrap.appendChild(existingLink);
+  }
+  section.appendChild(receiptWrap);
+
+  function updateReceiptNote() {
+    const n = document.getElementById('receiptReqNote');
+    if (n) n.style.display = parseFloat(ef.amount) > 50 ? 'inline' : 'none';
+  }
+  updateReceiptNote();
+
+  // Notes
+  section.appendChild(makeField('Notes (optional)', () => {
+    const ta = document.createElement('textarea');
+    ta.className = 'input'; ta.style.minHeight = '60px';
+    ta.value = ef.notes || ''; ta.placeholder = 'Any additional notes…';
+    ta.oninput = e => ef.notes = e.target.value;
+    return ta;
+  }));
+
+  // Save
+  const saveBtn = document.createElement('button');
+  saveBtn.className = 'btn-primary btn-full';
+  saveBtn.textContent = ef.id ? 'Update Expense' : 'Save Expense';
+  saveBtn.style.marginTop = '8px';
+  saveBtn.onclick = async () => {
+    if (!ef.date) { showToast('Date is required'); return; }
+    if (!ef.vendor || !ef.vendor.trim()) { showToast('Vendor is required'); return; }
+    if (!ef.category) { showToast('Category is required'); return; }
+    if (!ef.amount || isNaN(parseFloat(ef.amount))) { showToast('Amount is required'); return; }
+    if (parseFloat(ef.amount) > 50 && !ef._receiptFile && !ef.receipt_url) { showToast('Receipt required for amounts over $50'); return; }
+    saveBtn.textContent = 'Saving…'; saveBtn.disabled = true;
+    try {
+      let receipt_url = ef.receipt_url || null;
+      if (ef._receiptFile) {
+        const ext = ef._receiptFile.name.split('.').pop();
+        const path = `${Date.now()}_${ef.vendor.replace(/\W+/g,'_').toLowerCase()}.${ext}`;
+        const { error: upErr } = await db.storage.from('receipts').upload(path, ef._receiptFile);
+        if (upErr) throw upErr;
+        const { data: urlData } = db.storage.from('receipts').getPublicUrl(path);
+        receipt_url = urlData.publicUrl;
+      }
+      const payload = {
+        date: ef.date, vendor: ef.vendor.trim(),
+        description: ef.description || '', category: ef.category,
+        amount: parseFloat(ef.amount), payment_method: ef.payment_method || '',
+        receipt_url, notes: ef.notes || '',
+      };
+      const { error } = ef.id
+        ? await db.from('expenses').update(payload).eq('id', ef.id)
+        : await db.from('expenses').insert([payload]);
+      if (error) throw error;
+      showToast(ef.id ? 'Expense updated ✓' : 'Expense saved ✓');
+      await showExpenses();
+    } catch (err) {
+      showToast('Error: ' + (err.message || err.error_description || JSON.stringify(err)));
+      saveBtn.textContent = ef.id ? 'Update Expense' : 'Save Expense';
+      saveBtn.disabled = false;
+    }
+  };
+  section.appendChild(saveBtn);
+  view.appendChild(section);
+}
+
+function renderImportCSV(view) {
+  const section = document.createElement('div');
+  section.className = 'section';
+
+  const back = document.createElement('button');
+  back.className = 'btn-back'; back.textContent = '← Expenses';
+  back.onclick = () => { state.view = 'expenses'; renderView(); };
+  section.appendChild(back);
+
+  const titleDiv = document.createElement('div');
+  titleDiv.innerHTML = `<div style="font-size:18px;font-weight:700;margin-bottom:4px">Import Expenses</div><div style="font-size:13px;color:#9a6a6a;margin-bottom:20px">Upload a CSV — works with Chase transaction exports or your Google Sheets export (File → Download → CSV). Vendor rules auto-apply; any uncategorized rows need a category before saving.</div>`;
+  section.appendChild(titleDiv);
+
+  if (!state.importRows || state.importRows.length === 0) {
+    const dropZone = document.createElement('div');
+    dropZone.className = 'import-drop';
+    const fileInp = document.createElement('input');
+    fileInp.type = 'file'; fileInp.accept = '.csv,.txt,.tsv,text/csv,text/plain,application/vnd.ms-excel'; fileInp.style.display = 'none';
+    fileInp.onchange = e => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = ev => {
+        try {
+          const rows = parseAnyCSV(ev.target.result);
+          if (rows.length === 0) { showToast('No purchase transactions found in this file — check it\'s a CSV export, not a PDF'); return; }
+          state.importRows = rows;
+          renderView();
+        } catch (err) {
+          showToast('Error parsing CSV: ' + (err.message || err));
+        }
+      };
+      reader.onerror = () => showToast('Could not read that file — try re-selecting it');
+      reader.readAsText(file);
+    };
+    const pickBtn = document.createElement('button');
+    pickBtn.className = 'btn-primary'; pickBtn.textContent = 'Choose CSV File';
+    pickBtn.onclick = () => fileInp.click();
+    dropZone.innerHTML = `<div style="font-size:36px;margin-bottom:12px">📄</div><div style="font-weight:700;margin-bottom:6px">Choose Chase CSV file</div><div style="font-size:12px;color:#9a6a6a;margin-bottom:18px">Chase → Account Activity → Download → CSV format</div>`;
+    dropZone.appendChild(fileInp);
+    dropZone.appendChild(pickBtn);
+    section.appendChild(dropZone);
+  } else {
+    renderImportReview(section);
+  }
+  view.appendChild(section);
+}
+
+function renderImportReview(section) {
+  const rows = state.importRows;
+  const needsReview = rows.filter(r => !r._category).length;
+  const total = rows.reduce((s, r) => s + r._amount, 0);
+
+  const summary = document.createElement('div');
+  summary.className = 'total-bar';
+  summary.style.marginBottom = '14px';
+  const summaryLeft = document.createElement('div');
+  summaryLeft.innerHTML = `<div style="font-weight:700">${rows.length} transactions</div>`;
+  const flagNote = document.createElement('div');
+  flagNote.id = 'importFlagNote';
+  flagNote.style.cssText = 'font-size:12px;margin-top:4px';
+  flagNote.innerHTML = needsReview > 0
+    ? `<span style="color:#c0392b">⚠ ${needsReview} need a category</span>`
+    : `<span style="color:#2d6a4f">All categorized ✓</span>`;
+  summaryLeft.appendChild(flagNote);
+  summary.appendChild(summaryLeft);
+  const summaryRight = document.createElement('div');
+  summaryRight.className = 'total-bar-amount';
+  summaryRight.textContent = `$${total.toFixed(2)}`;
+  summary.appendChild(summaryRight);
+  section.appendChild(summary);
+
+  rows.forEach((row, idx) => {
+    const card = document.createElement('div');
+    card.className = 'expense-card';
+    if (!row._category) card.classList.add('expense-flag');
+
+    const top = document.createElement('div');
+    top.style.cssText = 'display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px';
+    top.innerHTML = `
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:700;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${row._vendor}</div>
+        <div style="font-size:12px;color:#9a6a6a">${row._date}</div>
+      </div>
+      <div style="font-weight:700;font-size:15px;margin-left:14px;flex-shrink:0">$${row._amount.toFixed(2)}</div>
+    `;
+    card.appendChild(top);
+
+    const sel = document.createElement('select');
+    sel.className = 'input'; sel.style.fontSize = '13px';
+    sel.innerHTML = `<option value="">Select category…</option>` +
+      CATEGORIES.map(c => `<option value="${c}" ${row._category === c ? 'selected' : ''}>${c}</option>`).join('');
+    sel.onchange = e => {
+      state.importRows[idx]._category = e.target.value;
+      card.classList.toggle('expense-flag', !e.target.value);
+      const stillNeeds = state.importRows.filter(r => !r._category).length;
+      const fn = document.getElementById('importFlagNote');
+      if (fn) fn.innerHTML = stillNeeds > 0
+        ? `<span style="color:#c0392b">⚠ ${stillNeeds} need a category</span>`
+        : `<span style="color:#2d6a4f">All categorized ✓</span>`;
+    };
+    card.appendChild(sel);
+    section.appendChild(card);
+  });
+
+  const saveBtn = document.createElement('button');
+  saveBtn.className = 'btn-primary btn-full'; saveBtn.style.marginTop = '12px';
+  saveBtn.textContent = `Save ${rows.length} Expenses`;
+  saveBtn.onclick = async () => {
+    const uncategorized = rows.filter(r => !r._category);
+    if (uncategorized.length > 0) { showToast(`${uncategorized.length} expense(s) still need a category`); return; }
+    saveBtn.textContent = 'Saving…'; saveBtn.disabled = true;
+    const payload = rows.map(r => ({
+      date: r._date, vendor: r._vendor, description: r._desc || '',
+      category: r._category, amount: r._amount,
+      payment_method: r._payment || '', receipt_url: null, notes: r._notes || '',
+    }));
+    const { error } = await db.from('expenses').insert(payload);
+    if (error) { showToast('Error: ' + (error.message || JSON.stringify(error))); saveBtn.textContent = `Save ${rows.length} Expenses`; saveBtn.disabled = false; return; }
+    showToast(`${rows.length} expenses saved ✓`);
+    state.importRows = [];
+    await showExpenses();
+  };
+  section.appendChild(saveBtn);
+}
+
+// ─── PASSWORD ────────────────────────────────────────────────────
+const PASS = 'Juhijuhi2930!';
+const SESSION_KEY = 'jg_auth';
+
+function checkAuth() {
+  return sessionStorage.getItem(SESSION_KEY) === '1';
+}
+
+function initLock() {
+  if (checkAuth()) {
+    document.getElementById('lockScreen').classList.add('hidden');
+    showClients();
+    return;
+  }
+  const input = document.getElementById('lockInput');
+  const btn = document.getElementById('lockBtn');
+  const err = document.getElementById('lockError');
+
+  function tryUnlock() {
+    if (input.value === PASS) {
+      sessionStorage.setItem(SESSION_KEY, '1');
+      document.getElementById('lockScreen').classList.add('hidden');
+      showClients();
+    } else {
+      err.textContent = 'Incorrect password. Try again.';
+      input.value = '';
+      input.focus();
+      setTimeout(() => err.textContent = '', 3000);
+    }
+  }
+
+  btn.onclick = tryUnlock;
+  input.onkeydown = e => { if (e.key === 'Enter') tryUnlock(); };
+  input.focus();
+}
+
+// ─── INIT ────────────────────────────────────────────────────────
+initLock();
+</script>
+</body>
+</html>
